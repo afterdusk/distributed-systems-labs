@@ -11,6 +11,18 @@ import (
 	"strconv"
 )
 
+// Task definitions
+type MapTask struct {
+	Filename string
+	ID       int
+	NReduce  int
+}
+
+type ReduceTask struct {
+	Key string
+	ID  int
+}
+
 //
 // example to show how to declare the arguments
 // and reply for an RPC.
@@ -31,8 +43,8 @@ type GetTaskArgs struct{}
 type GetTaskReply struct {
 	// Assigned Task
 	IsReduce bool
-	Key      *string
-	FileName *string
+	RTask    *ReduceTask
+	MTask    *MapTask
 }
 
 type PostCompletionArgs struct{}

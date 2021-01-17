@@ -28,7 +28,7 @@ func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 	reply.IsReduce = false
-	reply.FileName = &m.files[0]
+	reply.MTask = &MapTask{Filename: m.files[0], ID: 0, NReduce: m.nReduce}
 	return nil
 }
 

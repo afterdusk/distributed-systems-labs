@@ -1,7 +1,7 @@
 package mr
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
@@ -12,14 +12,6 @@ import (
 
 type mapfType func(string, string) []KeyValue
 type reducefType func(string, []string) string
-
-type mapTask struct {
-	filename string
-}
-
-type reduceTask struct {
-	key string
-}
 
 //
 // Map functions return a slice of KeyValue.
@@ -42,48 +34,67 @@ func ihash(key string) int {
 //
 // main/mrworker.go calls this function.
 //
-func Worker(mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+func Worker(mapf mapfType, reducef reducefType) {
 
 	// Your worker implementation here.
 
 	// uncomment to send the Example RPC to the master.
 	// CallExample()
-	isReduce, key, filename := callGetTask()
+	isReduce, reduceTask, mapTask := callGetTask()
 	if isReduce {
-		if key == nil {
+		if reduceTask == nil {
 			log.Fatalf("received nil key for reduce task")
 		}
-		execReduce(reducef, *key)
+		execReduce(reducef, reduceTask.Key)
 	} else {
-		if filename == nil {
-			log.Fatalf("received nil filname for map task")
+		if mapTask == nil {
+			log.Fatalf("received nil filename for map task")
 		}
-		execMap(mapf, *filename)
+		execMap(mapf, mapTask)
 	}
 
 }
 
-func execMap(mapf mapfType, filename string) error {
-	fmt.Printf("Map filename %v\n", filename)
-	file, err := os.Open(filename)
+func execMap(mapf mapfType, mapTask *MapTask) {
+	// Perform map on input file
+	file, err := os.Open(mapTask.Filename)
 	if err != nil {
-		log.Fatalf("cannot open %v", filename)
+		log.Fatalf("cannot open %v", mapTask.Filename)
 	}
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Fatalf("cannot read %v", filename)
+		log.Fatalf("cannot read %v", mapTask.Filename)
 	}
 	file.Close()
-	kva := mapf(filename, string(content))
-	fmt.Printf("Map kva %v\n", kva)
-	// intermediate = append(intermediate, kva...)
-	return nil
+	kva := mapf(mapTask.Filename, string(content))
+
+	// Bucket intermediate key-values
+	intermediate := make(map[int][]KeyValue)
+	for _, kv := range kva {
+		reduceID := ihash(kv.Key) % mapTask.NReduce
+		intermediate[reduceID] = append(intermediate[reduceID], kv)
+	}
+
+	// Dump key-values to intermediate files
+	for i := 0; i < mapTask.NReduce; i++ {
+		// Create intermediate file
+		iname := fmt.Sprintf("mr-%v-%v", mapTask.ID, i)
+		ifile, err := os.Create(iname)
+		if err != nil {
+			log.Fatal("cannot create intermediate file:", err)
+		}
+		// Encode to JSON and write to file
+		enc := json.NewEncoder(ifile)
+		for _, kv := range intermediate[i] {
+			if err := enc.Encode(&kv); err != nil {
+				log.Fatal("failure encoding intermediate data to json:", err)
+			}
+		}
+	}
 }
 
 // Reduce TODO
-func execReduce(reducef reducefType, key string) error {
-	return errors.New("unimplemented")
+func execReduce(reducef reducefType, key string) {
 }
 
 //
@@ -109,11 +120,11 @@ func CallExample() {
 	fmt.Printf("reply.Y %v\n", reply.Y)
 }
 
-func callGetTask() (bool, *string, *string) {
+func callGetTask() (bool, *ReduceTask, *MapTask) {
 	args := GetTaskArgs{}
 	reply := GetTaskReply{}
 	call("Master.GetTask", &args, &reply)
-	return reply.IsReduce, reply.Key, reply.FileName
+	return reply.IsReduce, reply.RTask, reply.MTask
 }
 
 //

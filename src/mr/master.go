@@ -17,16 +17,6 @@ type Master struct {
 
 // Your code here -- RPC handlers for the worker to call.
 
-//
-// an example RPC handler.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
-	reply.Y = args.X + 1
-	return nil
-}
-
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 	if m.isReducePhase {
 		reply.IsReduce = true

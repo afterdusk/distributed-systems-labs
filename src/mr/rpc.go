@@ -28,7 +28,7 @@ type ReduceTask struct {
 type GetTaskArgs struct{}
 
 type GetTaskReply struct {
-	// Assigned Task
+	IsDone   bool
 	IsReduce bool
 	RTask    *ReduceTask
 	MTask    *MapTask

@@ -47,20 +47,22 @@ func ihash(key string) int {
 func Worker(mapf mapfType, reducef reducefType) {
 
 	// Your worker implementation here.
-
-	// uncomment to send the Example RPC to the master.
-	// CallExample()
-	isReduce, reduceTask, mapTask := callGetTask()
-	if isReduce {
-		if reduceTask == nil {
-			log.Fatalf("received nil key for reduce task")
+	for {
+		isDone, isReduce, reduceTask, mapTask := callGetTask()
+		if isDone {
+			break
 		}
-		execReduce(reducef, reduceTask)
-	} else {
-		if mapTask == nil {
-			log.Fatalf("received nil filename for map task")
+		if isReduce {
+			if reduceTask == nil {
+				log.Fatalf("received nil reduce task")
+			}
+			execReduce(reducef, reduceTask)
+		} else {
+			if mapTask == nil {
+				log.Fatalf("received nil map task")
+			}
+			execMap(mapf, mapTask)
 		}
-		execMap(mapf, mapTask)
 	}
 
 }
@@ -147,11 +149,11 @@ func execReduce(reducef reducefType, reduceTask *ReduceTask) {
 	}
 }
 
-func callGetTask() (bool, *ReduceTask, *MapTask) {
+func callGetTask() (bool, bool, *ReduceTask, *MapTask) {
 	args := GetTaskArgs{}
 	reply := GetTaskReply{}
 	call("Master.GetTask", &args, &reply)
-	return reply.IsReduce, reply.RTask, reply.MTask
+	return reply.IsDone, reply.IsReduce, reply.RTask, reply.MTask
 }
 
 //

@@ -8,25 +8,48 @@ import (
 	"os"
 )
 
+type phase int
+
+const (
+	mapPhase    = 100
+	reducePhase = 200
+	completed   = 300
+)
+
 type Master struct {
 	// Your definitions here.
-	files         []string
-	nReduce       int
-	isReducePhase bool
+	files        []string
+	nReduce      int
+	currentPhase phase
+	// Temporary method to track issued tasks
+	mapCount    int
+	reduceCount int
 }
 
 // Your code here -- RPC handlers for the worker to call.
 
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
-	if m.isReducePhase {
+	switch m.currentPhase {
+	case mapPhase:
+		reply.IsReduce = false
+		reply.MTask = &MapTask{Filename: m.files[m.mapCount], ID: m.mapCount, NReduce: m.nReduce}
+		m.mapCount++
+		if m.mapCount == len(m.files) {
+			m.currentPhase = reducePhase
+		}
+		return nil
+	case reducePhase:
 		reply.IsReduce = true
-		reply.RTask = &ReduceTask{ID: 0, NMap: 1}
+		reply.RTask = &ReduceTask{ID: m.reduceCount, NMap: len(m.files)}
+		m.reduceCount++
+		if m.reduceCount == m.nReduce {
+			m.currentPhase = completed
+		}
+		return nil
+	case completed:
+		reply.IsDone = true
 		return nil
 	}
-	reply.IsReduce = false
-	reply.MTask = &MapTask{Filename: m.files[0], ID: 0, NReduce: m.nReduce}
-	m.isReducePhase = true
-	return nil
 }
 
 //
@@ -50,11 +73,10 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	ret := false
-
-	// Your code here.
-
-	return ret
+	if m.currentPhase == completed {
+		return true
+	}
+	return false
 }
 
 //
@@ -63,7 +85,7 @@ func (m *Master) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeMaster(files []string, nReduce int) *Master {
-	m := Master{files: files, nReduce: nReduce}
+	m := Master{files: files, nReduce: nReduce, currentPhase: mapPhase}
 
 	// Your code here.
 

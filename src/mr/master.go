@@ -10,7 +10,8 @@ import (
 
 type Master struct {
 	// Your definitions here.
-
+	files   []string
+	nReduce int
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -25,6 +26,11 @@ func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
+func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
+	reply.IsReduce = false
+	reply.FileName = &m.files[0]
+	return nil
+}
 
 //
 // start a thread that listens for RPCs from worker.go
@@ -60,7 +66,7 @@ func (m *Master) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeMaster(files []string, nReduce int) *Master {
-	m := Master{}
+	m := Master{files: files, nReduce: nReduce}
 
 	// Your code here.
 

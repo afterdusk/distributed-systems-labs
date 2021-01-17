@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
@@ -8,6 +9,17 @@ import (
 	"net/rpc"
 	"os"
 )
+
+type mapfType func(string, string) []KeyValue
+type reducefType func(string, []string) string
+
+type mapTask struct {
+	filename string
+}
+
+type reduceTask struct {
+	key string
+}
 
 //
 // Map functions return a slice of KeyValue.
@@ -37,7 +49,41 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// uncomment to send the Example RPC to the master.
 	// CallExample()
+	isReduce, key, filename := callGetTask()
+	if isReduce {
+		if key == nil {
+			log.Fatalf("received nil key for reduce task")
+		}
+		execReduce(reducef, *key)
+	} else {
+		if filename == nil {
+			log.Fatalf("received nil filname for map task")
+		}
+		execMap(mapf, *filename)
+	}
 
+}
+
+func execMap(mapf mapfType, filename string) error {
+	fmt.Printf("Map filename %v\n", filename)
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatalf("cannot open %v", filename)
+	}
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot read %v", filename)
+	}
+	file.Close()
+	kva := mapf(filename, string(content))
+	fmt.Printf("Map kva %v\n", kva)
+	// intermediate = append(intermediate, kva...)
+	return nil
+}
+
+// Reduce TODO
+func execReduce(reducef reducefType, key string) error {
+	return errors.New("unimplemented")
 }
 
 //
@@ -61,6 +107,13 @@ func CallExample() {
 
 	// reply.Y should be 100.
 	fmt.Printf("reply.Y %v\n", reply.Y)
+}
+
+func callGetTask() (bool, *string, *string) {
+	args := GetTaskArgs{}
+	reply := GetTaskReply{}
+	call("Master.GetTask", &args, &reply)
+	return reply.IsReduce, reply.Key, reply.FileName
 }
 
 //

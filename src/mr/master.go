@@ -10,8 +10,9 @@ import (
 
 type Master struct {
 	// Your definitions here.
-	files   []string
-	nReduce int
+	files         []string
+	nReduce       int
+	isReducePhase bool
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -27,8 +28,14 @@ func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 }
 
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
+	if m.isReducePhase {
+		reply.IsReduce = true
+		reply.RTask = &ReduceTask{ID: 0, NMap: 1}
+		return nil
+	}
 	reply.IsReduce = false
 	reply.MTask = &MapTask{Filename: m.files[0], ID: 0, NReduce: m.nReduce}
+	m.isReducePhase = true
 	return nil
 }
 

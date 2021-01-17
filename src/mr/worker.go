@@ -8,10 +8,20 @@ import (
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
 )
 
+// Map/Reduce type signatures
 type mapfType func(string, string) []KeyValue
 type reducefType func(string, []string) string
+
+// for sorting by key.
+type ByKey []KeyValue
+
+// for sorting by key.
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 //
 // Map functions return a slice of KeyValue.
@@ -45,7 +55,7 @@ func Worker(mapf mapfType, reducef reducefType) {
 		if reduceTask == nil {
 			log.Fatalf("received nil key for reduce task")
 		}
-		execReduce(reducef, reduceTask.Key)
+		execReduce(reducef, reduceTask)
 	} else {
 		if mapTask == nil {
 			log.Fatalf("received nil filename for map task")
@@ -93,8 +103,48 @@ func execMap(mapf mapfType, mapTask *MapTask) {
 	}
 }
 
-// Reduce TODO
-func execReduce(reducef reducefType, key string) {
+func execReduce(reducef reducefType, reduceTask *ReduceTask) {
+	// Shuffle
+	intermediate := []KeyValue{}
+	for i := 0; i < reduceTask.NMap; i++ {
+		iname := fmt.Sprintf("mr-%v-%v", i, reduceTask.ID)
+		ifile, err := os.Open(iname)
+		if err != nil {
+			log.Fatal("cannot open intermediate file:", err)
+		}
+		dec := json.NewDecoder(ifile)
+		for {
+			kv := KeyValue{}
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			intermediate = append(intermediate, kv)
+		}
+	}
+
+	// Sort
+	sort.Sort(ByKey(intermediate))
+
+	// Reduce
+	oname := fmt.Sprintf("mr-out-%v", reduceTask.ID)
+	ofile, _ := os.Create(oname)
+
+	i := 0
+	for i < len(intermediate) {
+		j := i + 1
+		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			j++
+		}
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, intermediate[k].Value)
+		}
+		output := reducef(intermediate[i].Key, values)
+
+		fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+
+		i = j
+	}
 }
 
 //

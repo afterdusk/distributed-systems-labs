@@ -19,8 +19,8 @@ type MapTask struct {
 }
 
 type ReduceTask struct {
-	Key string
-	ID  int
+	ID   int
+	NMap int
 }
 
 //

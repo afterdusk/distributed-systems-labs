@@ -73,8 +73,8 @@ type Master struct {
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 	for !m.mapTasks.empty() {
 		if ok, task := m.mapTasks.issue(); ok {
-			mapTask, ok := task.(MapTask)
-			if !ok {
+			mapTask, castOk := task.(MapTask)
+			if !castOk {
 				log.Fatal("did not receive map task from map task pool")
 			}
 			reply.MTask = &mapTask
@@ -83,8 +83,8 @@ func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 	}
 	for !m.reduceTasks.empty() {
 		if ok, task := m.reduceTasks.issue(); ok {
-			reduceTask, ok := task.(ReduceTask)
-			if !ok {
+			reduceTask, castOk := task.(ReduceTask)
+			if !castOk {
 				log.Fatal("did not receive reduce task from reduce task pool")
 			}
 			reply.RTask = &reduceTask
@@ -98,10 +98,16 @@ func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 
 func (m *Master) PostCompletion(args *PostCompletionArgs, reply *PostCompletionReply) error {
 	if args.IsReduce {
+		if args.RTask == nil {
+			log.Fatal("received nil reduce task")
+		}
 		m.reduceTasks.complete(args.RTask.ID)
-		return nil
+	} else {
+		if args.MTask == nil {
+			log.Fatal("received nil map task")
+		}
+		m.mapTasks.complete(args.MTask.ID)
 	}
-	m.mapTasks.complete(args.MTask.ID)
 	return nil
 }
 
@@ -126,10 +132,7 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	if m.mapTasks.empty() && m.reduceTasks.empty() {
-		return true
-	}
-	return false
+	return m.mapTasks.empty() && m.reduceTasks.empty()
 }
 
 //

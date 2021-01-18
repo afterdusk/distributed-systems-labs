@@ -89,11 +89,10 @@ func execMap(mapf mapfType, mapTask *MapTask) {
 	}
 
 	// Dump key-values to intermediate files
-	// TODO: Use temporary names and rename on completion (not necessary tho)
 	for i := 0; i < mapTask.NReduce; i++ {
 		// Create intermediate file
 		iname := fmt.Sprintf("mr-%v-%v", mapTask.ID, i)
-		ifile, err := os.Create(iname)
+		ifile, err := ioutil.TempFile("", iname)
 		if err != nil {
 			log.Fatal("cannot create intermediate file:", err)
 		}
@@ -104,6 +103,7 @@ func execMap(mapf mapfType, mapTask *MapTask) {
 				log.Fatal("failure encoding intermediate data to json:", err)
 			}
 		}
+		os.Rename(ifile.Name(), iname)
 	}
 }
 

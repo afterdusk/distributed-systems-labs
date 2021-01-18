@@ -43,8 +43,6 @@ func (tp *taskPool) empty() bool {
 }
 
 func (tp *taskPool) complete(id int) {
-	// Assume workers will not overwrite intermediate files later
-	// Thus, it is safe to mark a task as completed on the first completion request
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	delete(tp.pending, id)

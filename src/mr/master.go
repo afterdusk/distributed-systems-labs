@@ -6,50 +6,99 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"sync"
+	"time"
 )
 
-type phase int
+type taskPool struct {
+	pending map[int]Task
+	issued  map[int]Task
+	mutex   sync.Mutex
+}
 
-const (
-	mapPhase    = 100
-	reducePhase = 200
-	completed   = 300
-)
+func makeTaskPool() taskPool {
+	return taskPool{pending: make(map[int]Task), issued: make(map[int]Task)}
+}
+
+func (tp *taskPool) insert(id int, task Task) {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+	tp.pending[id] = task
+}
+
+func (tp *taskPool) issue() (bool, Task) {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+	for id, task := range tp.pending {
+		delete(tp.pending, id)
+		tp.issued[id] = task
+		time.AfterFunc(10*time.Second, func() { tp.reset(id) })
+		return true, task
+	}
+	return false, nil
+}
+
+func (tp *taskPool) empty() bool {
+	return len(tp.pending) == 0 && len(tp.issued) == 0
+}
+
+func (tp *taskPool) complete(id int) {
+	// Assume workers will not overwrite intermediate files later
+	// Thus, it is safe to mark a task as completed on the first completion request
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+	delete(tp.pending, id)
+	delete(tp.issued, id)
+}
+
+func (tp *taskPool) reset(id int) bool {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+	if task, ok := tp.issued[id]; ok {
+		delete(tp.issued, id)
+		tp.pending[id] = task
+		return true
+	}
+	return false
+}
 
 type Master struct {
 	// Your definitions here.
-	files        []string
-	nReduce      int
-	currentPhase phase
-	// Temporary method to track issued tasks
-	mapCount    int
-	reduceCount int
+	files       []string
+	nReduce     int
+	mapTasks    taskPool
+	reduceTasks taskPool
 }
 
 // Your code here -- RPC handlers for the worker to call.
 
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
-	switch m.currentPhase {
-	case mapPhase:
-		reply.IsReduce = false
-		reply.MTask = &MapTask{Filename: m.files[m.mapCount], ID: m.mapCount, NReduce: m.nReduce}
-		m.mapCount++
-		if m.mapCount == len(m.files) {
-			m.currentPhase = reducePhase
+	for !m.mapTasks.empty() {
+		if ok, task := m.mapTasks.issue(); ok {
+			mapTask := task.(MapTask)
+			reply.MTask = &mapTask
+			return nil
 		}
-		return nil
-	case reducePhase:
-		reply.IsReduce = true
-		reply.RTask = &ReduceTask{ID: m.reduceCount, NMap: len(m.files)}
-		m.reduceCount++
-		if m.reduceCount == m.nReduce {
-			m.currentPhase = completed
+	}
+	for !m.reduceTasks.empty() {
+		if ok, task := m.reduceTasks.issue(); ok {
+			reduceTask := task.(ReduceTask)
+			reply.RTask = &reduceTask
+			reply.IsReduce = true
+			return nil
 		}
-		return nil
-	case completed:
-		reply.IsDone = true
+	}
+	reply.IsDone = true
+	return nil
+}
+
+func (m *Master) PostCompletion(args *PostCompletionArgs, reply *PostCompletionReply) error {
+	if args.IsReduce {
+		m.reduceTasks.complete(args.RTask.ID)
 		return nil
 	}
+	m.mapTasks.complete(args.MTask.ID)
+	return nil
 }
 
 //
@@ -73,7 +122,7 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	if m.currentPhase == completed {
+	if m.mapTasks.empty() && m.reduceTasks.empty() {
 		return true
 	}
 	return false
@@ -85,9 +134,17 @@ func (m *Master) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeMaster(files []string, nReduce int) *Master {
-	m := Master{files: files, nReduce: nReduce, currentPhase: mapPhase}
+	m := Master{files: files, nReduce: nReduce, reduceTasks: makeTaskPool(), mapTasks: makeTaskPool()}
 
 	// Your code here.
+	// Create map tasks
+	for i := 0; i < len(files); i++ {
+		m.mapTasks.insert(i, MapTask{Filename: files[i], ID: i, NReduce: nReduce})
+	}
+	// Create reduce tasks
+	for i := 0; i < nReduce; i++ {
+		m.reduceTasks.insert(i, ReduceTask{ID: i, NMap: len(files)})
+	}
 
 	m.server()
 	return &m

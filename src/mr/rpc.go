@@ -12,16 +12,25 @@ import (
 )
 
 // Task definitions
+// TODO: Is there a more idiomatic way than forcing "inheritance"?
+type Task interface {
+	isTask()
+}
+
 type MapTask struct {
 	Filename string
 	ID       int
 	NReduce  int
 }
 
+func (m MapTask) isTask() {}
+
 type ReduceTask struct {
 	ID   int
 	NMap int
 }
+
+func (r ReduceTask) isTask() {}
 
 // Add your RPC definitions here.
 
@@ -34,7 +43,11 @@ type GetTaskReply struct {
 	MTask    *MapTask
 }
 
-type PostCompletionArgs struct{}
+type PostCompletionArgs struct {
+	IsReduce bool
+	RTask    *ReduceTask
+	MTask    *MapTask
+}
 
 type PostCompletionReply struct{}
 

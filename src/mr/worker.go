@@ -54,15 +54,16 @@ func Worker(mapf mapfType, reducef reducefType) {
 		}
 		if isReduce {
 			if reduceTask == nil {
-				log.Fatalf("received nil reduce task")
+				log.Fatal("received nil reduce task")
 			}
 			execReduce(reducef, reduceTask)
 		} else {
 			if mapTask == nil {
-				log.Fatalf("received nil map task")
+				log.Fatal("received nil map task")
 			}
 			execMap(mapf, mapTask)
 		}
+		callPostCompletion(isReduce, reduceTask, mapTask)
 	}
 
 }
@@ -88,6 +89,7 @@ func execMap(mapf mapfType, mapTask *MapTask) {
 	}
 
 	// Dump key-values to intermediate files
+	// TODO: Use temporary names and rename on completion (not necessary tho)
 	for i := 0; i < mapTask.NReduce; i++ {
 		// Create intermediate file
 		iname := fmt.Sprintf("mr-%v-%v", mapTask.ID, i)
@@ -154,6 +156,12 @@ func callGetTask() (bool, bool, *ReduceTask, *MapTask) {
 	reply := GetTaskReply{}
 	call("Master.GetTask", &args, &reply)
 	return reply.IsDone, reply.IsReduce, reply.RTask, reply.MTask
+}
+
+func callPostCompletion(isReduce bool, reduceTask *ReduceTask, mapTask *MapTask) {
+	args := PostCompletionArgs{IsReduce: isReduce, RTask: reduceTask, MTask: mapTask}
+	reply := PostCompletionReply{}
+	call("Master.PostCompletion", &args, &reply)
 }
 
 //

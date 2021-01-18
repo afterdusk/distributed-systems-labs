@@ -11,22 +11,22 @@ import (
 )
 
 type taskPool struct {
-	pending map[int]Task
-	issued  map[int]Task
+	pending map[int]interface{}
+	issued  map[int]interface{}
 	mutex   sync.Mutex
 }
 
 func makeTaskPool() taskPool {
-	return taskPool{pending: make(map[int]Task), issued: make(map[int]Task)}
+	return taskPool{pending: make(map[int]interface{}), issued: make(map[int]interface{})}
 }
 
-func (tp *taskPool) insert(id int, task Task) {
+func (tp *taskPool) insert(id int, task interface{}) {
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	tp.pending[id] = task
 }
 
-func (tp *taskPool) issue() (bool, Task) {
+func (tp *taskPool) issue() (bool, interface{}) {
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
 	for id, task := range tp.pending {
@@ -73,14 +73,20 @@ type Master struct {
 func (m *Master) GetTask(args *GetTaskArgs, reply *GetTaskReply) error {
 	for !m.mapTasks.empty() {
 		if ok, task := m.mapTasks.issue(); ok {
-			mapTask := task.(MapTask)
+			mapTask, ok := task.(MapTask)
+			if !ok {
+				log.Fatal("did not receive map task from map task pool")
+			}
 			reply.MTask = &mapTask
 			return nil
 		}
 	}
 	for !m.reduceTasks.empty() {
 		if ok, task := m.reduceTasks.issue(); ok {
-			reduceTask := task.(ReduceTask)
+			reduceTask, ok := task.(ReduceTask)
+			if !ok {
+				log.Fatal("did not receive reduce task from reduce task pool")
+			}
 			reply.RTask = &reduceTask
 			reply.IsReduce = true
 			return nil

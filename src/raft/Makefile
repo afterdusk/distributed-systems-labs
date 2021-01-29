@@ -1,3 +1,6 @@
+test:
+	go test
+
 test-2a:
 	go test -run 2A
 
@@ -12,4 +15,13 @@ time-2b:
 
 race:
 	go test -race
+
+race-2a:
+	go test -race -run 2A
+
+race-2b:
+	go test -race -run 2B
+
+race-2c:
+	go test -race -run 2C
 

@@ -514,11 +514,11 @@ func (rf *Raft) tick() {
 }
 
 func (rf *Raft) heartbeat() {
-	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.heartbeat)
-
 	if !rf.isLeader() {
 		return
 	}
+
+	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.heartbeat)
 
 	// TOOD: Confirm if PrevLogIndex is the length - 1
 	currentTerm, prevLogIndex, prevLogTerm := rf.getTermAndLog()

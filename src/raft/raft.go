@@ -51,6 +51,7 @@ type ApplyMsg struct {
 //
 const (
 	tickFrequencyMS      = 5
+	heartbeatFrequencyMS = 20
 	maxElectionTimeoutMS = 2000
 )
 
@@ -105,11 +106,24 @@ type Raft struct {
 	votes           int
 }
 
-func (rf *Raft) updateLastHeard() {
+func (rf *Raft) updateLastHeard(now time.Time) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	rf.lastHeard = time.Now()
+	rf.lastHeard = now
+}
+
+func (rf *Raft) updateCommit(leaderCommit int, lastNewIndex int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if leaderCommit > rf.commitIndex {
+		smaller := leaderCommit
+		if lastNewIndex+1 < smaller {
+			smaller = lastNewIndex + 1
+		}
+		rf.commitIndex = smaller
+	}
 }
 
 func (rf *Raft) maybeVoteFor(server int, term int, logIndex int) (bool, int) {
@@ -126,6 +140,31 @@ func (rf *Raft) maybeVoteFor(server int, term int, logIndex int) (bool, int) {
 		return true, rf.currentTerm
 	}
 	return false, rf.currentTerm
+}
+
+func (rf *Raft) maybeAppend(term int, logIndex int, logTerm int, entries *[]LogEntry) (bool, int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	validTerm := term >= rf.currentTerm
+	samePrevLog := logIndex < 0 || rf.log[logIndex].Term != logTerm
+
+	if validTerm && samePrevLog {
+		i := logIndex + 1
+		for _, entry := range *entries {
+			// TODO: Is it safe to always overwrite?
+			if len(rf.log) > i {
+				rf.log[i] = entry
+			} else {
+				rf.log = append(rf.log, entry)
+			}
+			// TODO: Correct place to increment term seen?
+			rf.currentTerm = entry.Term
+			i++
+		}
+		return true, i
+	}
+	return false, -1
 }
 
 // returns true if majority is achieved
@@ -146,11 +185,11 @@ func (rf *Raft) isLeader() bool {
 }
 
 // TODO: Consider using a function that returns a read-only copy of state instead
-func (rf *Raft) hasTimedOut() bool {
+func (rf *Raft) hasTimedOut(now time.Time) bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	return rf.lastHeard.Add(rf.electionTimeout).Before(time.Now())
+	return rf.lastHeard.Add(rf.electionTimeout).Before(now)
 }
 
 // TODO: Consider using a function that returns a read-only copy of state instead
@@ -316,46 +355,13 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.maybeBecomeFollower(args.Term)
+	rf.updateLastHeard(time.Now())
 
-	rf.updateLastHeard()
+	var lastNewIndex int
+	reply.Success, lastNewIndex = rf.maybeAppend(args.Term, args.PrevLogIndex, args.PrevLogTerm, &args.Entries)
 
-	// TODO: Avoid using locks at this level?
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	// failure conditions
-	if args.Term < rf.currentTerm {
-		reply.Success = false
-		return
-	}
-
-	if args.PrevLogIndex >= 0 && rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
-		reply.Success = false
-		return
-	}
-
-	// success routine
-	reply.Success = true
-	i := args.PrevLogIndex + 1
-	for _, entry := range args.Entries {
-		// TODO: Is it safe to always overwrite?
-		if len(rf.log) > i {
-			rf.log[i] = entry
-		} else {
-			rf.log = append(rf.log, entry)
-		}
-		// TODO: Correct place to increment term seen?
-		rf.currentTerm = entry.Term
-		i++
-	}
-
-	if args.LeaderCommit > rf.commitIndex {
-		smaller := args.LeaderCommit
-		if i+1 < smaller {
-			smaller = i + 1
-		}
-		rf.commitIndex = smaller
-	}
+	// TODO: Is it safe to split the critical section? rf.commitIndex might change
+	rf.updateCommit(args.LeaderCommit, lastNewIndex)
 }
 
 //
@@ -395,10 +401,14 @@ func (rf *Raft) sendRequestVote(server int, term int, logIndex int, logTerm int)
 		LastLogTerm:  logTerm,
 	}
 	reply := &RequestVoteReply{}
-	if ok := rf.peers[server].Call("Raft.RequestVote", args, reply); ok && reply.VoteGranted {
-		if hasMajority := rf.addVoteAndTestMajority(); hasMajority {
-			if becameLeader := rf.maybeBecomeLeader(); becameLeader {
-				go rf.heartbeat()
+	if ok := rf.peers[server].Call("Raft.RequestVote", args, reply); ok {
+		rf.maybeBecomeFollower(reply.Term)
+
+		if reply.VoteGranted {
+			if hasMajority := rf.addVoteAndTestMajority(); hasMajority {
+				if becameLeader := rf.maybeBecomeLeader(); becameLeader {
+					go rf.heartbeat()
+				}
 			}
 		}
 	}
@@ -413,7 +423,6 @@ func (rf *Raft) sendAppendEntries(server int, term int, logIndex int, logTerm in
 	}
 	reply := &AppendEntriesReply{}
 	if ok := rf.peers[server].Call("Raft.AppendEntries", args, reply); ok {
-		// TODO: Correct place? Might have cleaner alternative
 		rf.maybeBecomeFollower(reply.Term)
 	}
 }
@@ -491,19 +500,20 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	return rf
 }
 
-// Starts leader election when it hasn't heard from another
+//
+// starts leader election when it hasn't heard from another
 // peer for a while.
+//
 func (rf *Raft) tick() {
 	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
 
-	if rf.isLeader() || !rf.hasTimedOut() {
+	if rf.isLeader() || !rf.hasTimedOut(time.Now()) {
 		return
 	}
 
-	// start election process (transit to candidate)
 	rf.maybeBecomeCandidate()
 
-	// TOOD: Confirm if LastLogIndex is the length - 1, and not the lastCommitted
+	// TODO: Confirm if LastLogIndex is the length - 1, and not the lastCommitted
 	currentTerm, lastLogIndex, lastLogTerm := rf.getTermAndLog()
 	for i := range rf.peers {
 		if i == rf.me {
@@ -513,14 +523,17 @@ func (rf *Raft) tick() {
 	}
 }
 
+//
+// sends periodic append entries to peers if leader.
+//
 func (rf *Raft) heartbeat() {
 	if !rf.isLeader() {
 		return
 	}
 
-	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.heartbeat)
+	defer time.AfterFunc(time.Duration(heartbeatFrequencyMS)*time.Millisecond, rf.heartbeat)
 
-	// TOOD: Confirm if PrevLogIndex is the length - 1
+	// TODO: Confirm if PrevLogIndex is the length - 1
 	currentTerm, prevLogIndex, prevLogTerm := rf.getTermAndLog()
 	for i := range rf.peers {
 		if i == rf.me {

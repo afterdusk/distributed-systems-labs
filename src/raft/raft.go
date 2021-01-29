@@ -129,7 +129,7 @@ func (rf *Raft) maybeVoteFor(server int, term int, logIndex int) (bool, int) {
 }
 
 // returns true if majority is achieved
-func (rf *Raft) countAndTestMajority() bool {
+func (rf *Raft) addVoteAndTestMajority() bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
@@ -137,44 +137,95 @@ func (rf *Raft) countAndTestMajority() bool {
 	return rf.votes > len(rf.peers)/2
 }
 
-func (rf *Raft) becomeFollower(term int) {
-	DPrintf("%v (term %v) becomes follower\n", rf.me, rf.currentTerm)
-
+// TODO: Consider using a function that returns a read-only copy of state instead
+func (rf *Raft) isLeader() bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
+	return rf.state == leader
+}
+
+// TODO: Consider using a function that returns a read-only copy of state instead
+func (rf *Raft) hasTimedOut() bool {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	return rf.lastHeard.Add(rf.electionTimeout).Before(time.Now())
+}
+
+// TODO: Consider using a function that returns a read-only copy of state instead
+func (rf *Raft) getTermAndLog() (term int, logIndex int, logTerm int) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	term = rf.currentTerm
+	logIndex = len(rf.log) - 1
+	logTerm = 0
+	if logIndex >= 0 {
+		logTerm = rf.log[logIndex].Term
+	}
+	return term, logIndex, logTerm
+}
+
+func (rf *Raft) initState() {
+	rf.mu.Lock()
+	rf.mu.Unlock()
+
+	rf.state = follower
+	rf.lastHeard = time.Now()
+}
+
+func (rf *Raft) maybeBecomeFollower(term int) bool {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if rf.state == follower || term <= rf.currentTerm {
+		return false
+	}
+
+	DPrintf("%v (term %v) becomes follower\n", rf.me, rf.currentTerm)
 	rf.state = follower
 	rf.currentTerm = term
 	rf.votedFor = nil
+	return true
 }
 
-func (rf *Raft) becomeCandidate() {
-	DPrintf("%v (term %v) becomes candidate\n", rf.me, rf.currentTerm)
-
+func (rf *Raft) maybeBecomeCandidate() bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
+	if rf.state == leader {
+		return false
+	}
+
+	DPrintf("%v (term %v) becomes candidate\n", rf.me, rf.currentTerm)
 	rf.state = candidate
 	rf.votedFor = &rf.me
 	rf.votes = 1
 	rf.currentTerm++
 	rf.electionTimeout = time.Duration(rand.Intn(maxElectionTimeoutMS)) * time.Millisecond
+	return true
 }
 
-func (rf *Raft) becomeLeader() {
-	DPrintf("%v (term %v) becomes leader\n", rf.me, rf.currentTerm)
-
+func (rf *Raft) maybeBecomeLeader() bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
+	if rf.state != candidate {
+		return false
+	}
+
+	DPrintf("%v (term %v) becomes leader\n", rf.me, rf.currentTerm)
 	rf.state = leader
+	return true
 }
 
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 	// Your code here (2A).
-	term, isleader := rf.currentTerm, rf.state == leader
+	term, _, _ := rf.getTermAndLog()
+	isleader := rf.isLeader()
 	DPrintf("%v (term %v) isLeader: %v\n", rf.me, term, isleader)
 	return term, isleader
 }
@@ -258,17 +309,13 @@ type AppendEntriesReply struct {
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
-	if rf.state != follower && args.Term > rf.currentTerm {
-		rf.becomeFollower(args.Term)
-	}
+	rf.maybeBecomeFollower(args.Term)
 
 	reply.VoteGranted, reply.Term = rf.maybeVoteFor(args.CandidateID, args.Term, args.LastLogIndex)
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	if rf.state != follower && args.Term > rf.currentTerm {
-		rf.becomeFollower(args.Term)
-	}
+	rf.maybeBecomeFollower(args.Term)
 
 	rf.updateLastHeard()
 
@@ -349,10 +396,10 @@ func (rf *Raft) sendRequestVote(server int, term int, logIndex int, logTerm int)
 	}
 	reply := &RequestVoteReply{}
 	if ok := rf.peers[server].Call("Raft.RequestVote", args, reply); ok && reply.VoteGranted {
-		DPrintf("%v (term %v) got %v votes\n", rf.me, rf.currentTerm, rf.votes)
-		if majority := rf.countAndTestMajority(); majority && rf.state == candidate {
-			rf.becomeLeader()
-			go rf.heartbeat()
+		if hasMajority := rf.addVoteAndTestMajority(); hasMajority {
+			if becameLeader := rf.maybeBecomeLeader(); becameLeader {
+				go rf.heartbeat()
+			}
 		}
 	}
 }
@@ -367,9 +414,7 @@ func (rf *Raft) sendAppendEntries(server int, term int, logIndex int, logTerm in
 	reply := &AppendEntriesReply{}
 	if ok := rf.peers[server].Call("Raft.AppendEntries", args, reply); ok {
 		// TODO: Correct place? Might have cleaner alternative
-		if rf.state != follower && reply.Term > rf.currentTerm {
-			rf.becomeFollower(reply.Term)
-		}
+		rf.maybeBecomeFollower(reply.Term)
 	}
 }
 
@@ -437,8 +482,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (2A, 2B, 2C).
-	rf.becomeFollower(0)
-	rf.updateLastHeard()
+	rf.initState()
 	go rf.tick()
 
 	// initialize from state persisted before a crash
@@ -452,21 +496,15 @@ func Make(peers []*labrpc.ClientEnd, me int,
 func (rf *Raft) tick() {
 	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
 
-	if rf.state == leader || rf.lastHeard.Add(rf.electionTimeout).After(time.Now()) {
+	if rf.isLeader() || !rf.hasTimedOut() {
 		return
 	}
 
 	// start election process (transit to candidate)
-	rf.becomeCandidate()
+	rf.maybeBecomeCandidate()
 
 	// TOOD: Confirm if LastLogIndex is the length - 1, and not the lastCommitted
-	currentTerm := rf.currentTerm
-	lastLogIndex := len(rf.log) - 1
-	lastLogTerm := 0
-	if lastLogIndex >= 0 {
-		lastLogTerm = rf.log[lastLogIndex].Term
-	}
-
+	currentTerm, lastLogIndex, lastLogTerm := rf.getTermAndLog()
 	for i := range rf.peers {
 		if i == rf.me {
 			continue
@@ -478,18 +516,12 @@ func (rf *Raft) tick() {
 func (rf *Raft) heartbeat() {
 	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.heartbeat)
 
-	if rf.state != leader {
+	if !rf.isLeader() {
 		return
 	}
 
 	// TOOD: Confirm if PrevLogIndex is the length - 1
-	currentTerm := rf.currentTerm
-	prevLogIndex := len(rf.log) - 1
-	prevLogTerm := 0
-	if prevLogIndex >= 0 {
-		prevLogTerm = rf.log[prevLogIndex].Term
-	}
-
+	currentTerm, prevLogIndex, prevLogTerm := rf.getTermAndLog()
 	for i := range rf.peers {
 		if i == rf.me {
 			continue

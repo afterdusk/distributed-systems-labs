@@ -52,6 +52,7 @@ type ApplyMsg struct {
 const (
 	tickFrequencyMS      = 5
 	heartbeatFrequencyMS = 20
+	minElectionTimeoutMS = 100
 	maxElectionTimeoutMS = 2000
 )
 
@@ -242,7 +243,7 @@ func (rf *Raft) maybeBecomeCandidate() bool {
 	rf.votedFor = &rf.me
 	rf.votes = 1
 	rf.currentTerm++
-	rf.electionTimeout = time.Duration(rand.Intn(maxElectionTimeoutMS)) * time.Millisecond
+	rf.electionTimeout = time.Duration(rand.Intn(maxElectionTimeoutMS-minElectionTimeoutMS)+minElectionTimeoutMS) * time.Millisecond
 	return true
 }
 

@@ -39,6 +39,8 @@ func (tp *taskPool) issue() (bool, interface{}) {
 }
 
 func (tp *taskPool) empty() bool {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
 	return len(tp.pending) == 0 && len(tp.issued) == 0
 }
 

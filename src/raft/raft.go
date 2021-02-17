@@ -586,6 +586,7 @@ func (rf *Raft) tick() {
 		defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
 	}
 
+	// TODO: Perform this in a separate goroutine, as it may be blocking
 	// always apply any unapplied commits
 	rf.applyCommits()
 

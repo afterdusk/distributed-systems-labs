@@ -55,7 +55,7 @@ const (
 	heartbeatFrequencyMS = 50 // leader heartbeat frequency
 	minElectionTimeoutMS = 300
 	maxElectionTimeoutMS = 800
-	gobNilDummyValue     = -1 // dummy value representing nil values encoded with gob
+	gobNilDummyValue     = -1 // dummy value to replace nil values for encoding with gob
 )
 
 //
@@ -93,6 +93,7 @@ type Raft struct {
 	persister *Persister          // Object to hold this peer's persisted state
 	me        int                 // this peer's index into peers[]
 	dead      int32               // set by Kill()
+	applyCh   chan ApplyMsg       // channel to send ApplyMsg to service
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -104,22 +105,16 @@ type Raft struct {
 	log         []LogEntry
 
 	// volatile state
-	commitIndex  int
-	lastApplied  int
-	lastNewIndex int // tracks the index of the last log added in the current term
+	commitIndex int
+	lastApplied int
+	nextIndex   []int
+	matchIndex  []int
 
-	// volatile state (leaders)
-	nextIndex  []int
-	matchIndex []int
-
-	// election state
-	state           int
-	lastHeard       time.Time
-	electionTimeout time.Duration
-	votes           int
-
-	// application state
-	applyCh chan ApplyMsg
+	state           int           // follower, candidate or leader
+	lastHeard       time.Time     // time that last valid AppendEntries was received
+	electionTimeout time.Duration // election timeout
+	lastNewIndex    int           // index of the last log added in the current term
+	votes           int           // number of votes received in current term
 }
 
 func (rf *Raft) getLastLogIndexAndTerm() (int, int) {
@@ -251,14 +246,11 @@ func (rf *Raft) canAppend(term int, logIndex int, logTerm int) (bool, int) {
 	// correct term but conflicting logs
 	if validTerm {
 		conflictFirstIndex := 1
-
-		// first assume log is lagging
+		// first assume log is lagging leader
 		if len(rf.log) > 0 {
-			// conflictTerm = rf.log[len(rf.log)-1].Term
 			conflictFirstIndex = len(rf.log)
 		}
-
-		// if our log is not lagging but has actual conflicts
+		// if log is not lagging but has conflicts
 		if logIndex <= len(rf.log) {
 			conflictTerm := rf.log[logIndex-1].Term
 			conflictFirstIndex = rf.getFirstLogIndex(conflictTerm)
@@ -380,7 +372,6 @@ func (rf *Raft) readPersist(data []byte) {
 		return
 	}
 	// Your code here (2C).
-	// Example:
 	buf := bytes.NewBuffer(data)
 	dec := labgob.NewDecoder(buf)
 	if err := dec.Decode(&rf.currentTerm); err != nil {
@@ -398,16 +389,6 @@ func (rf *Raft) readPersist(data []byte) {
 	if err := dec.Decode(&rf.log); err != nil {
 		log.Fatal(err)
 	}
-
-	// var xxx
-	// var yyy
-	// if d.Decode(&xxx) != nil ||
-	//    d.Decode(&yyy) != nil {
-	//   error...
-	// } else {
-	//   rf.xxx = xxx
-	//   rf.yyy = yyy
-	// }
 }
 
 //
@@ -527,6 +508,13 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs) {
 		defer rf.mu.Unlock()
 
 		rf.maybeBecomeFollower(reply.Term)
+
+		// terminate if original request expired
+		if rf.state != candidate || args.Term != rf.currentTerm {
+			return
+		}
+
+		// count vote if success
 		if reply.VoteGranted {
 			rf.votes++
 		}
@@ -540,10 +528,13 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 		defer rf.mu.Unlock()
 
 		rf.maybeBecomeFollower(reply.Term)
-		if !rf.isLeader() || args.Term < reply.Term {
+
+		// terminate if original request expired
+		if !rf.isLeader() || args.Term != rf.currentTerm {
 			return
 		}
 
+		// process successful request, or retry
 		if reply.Success {
 			rf.nextIndex[server] = args.PrevLogIndex + len(args.Entries) + 1
 			rf.matchIndex[server] = rf.nextIndex[server] - 1
@@ -666,7 +657,7 @@ func (rf *Raft) tick() {
 
 	switch rf.state {
 	case leader:
-		// send AppendEntries RPC
+		// send AppendEntries RPC to lagging followers
 		for i := range rf.peers {
 			if i == rf.me {
 				continue

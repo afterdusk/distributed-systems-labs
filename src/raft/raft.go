@@ -581,8 +581,10 @@ func (rf *Raft) tick() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	// always reschedule this routine
-	defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
+	// always reschedule this routine if server is not killed
+	if !rf.killed() {
+		defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
+	}
 
 	// always apply any unapplied commits
 	rf.applyCommits()
@@ -647,12 +649,15 @@ func (rf *Raft) heartbeat() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	// kill this routine if server is deposed, else reschedule it
+	// stop this routine if server is deposed
 	if !rf.isLeader() {
 		return
 	}
 
-	defer time.AfterFunc(time.Duration(heartbeatFrequencyMS)*time.Millisecond, rf.heartbeat)
+	// always reschedule this routine if server is not killed
+	if !rf.killed() {
+		defer time.AfterFunc(time.Duration(heartbeatFrequencyMS)*time.Millisecond, rf.heartbeat)
+	}
 
 	// send empty AppendEntries
 	for i := range rf.peers {

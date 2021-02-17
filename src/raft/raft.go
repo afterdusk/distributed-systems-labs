@@ -18,17 +18,17 @@ package raft
 //
 
 import (
+	"bytes"
+	"log"
 	"math/rand"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"../labgob"
 	"../labrpc"
 )
-
-// import "bytes"
-// import "../labgob"
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -51,10 +51,11 @@ type ApplyMsg struct {
 // Program constants.
 //
 const (
-	tickFrequencyMS      = 10
-	heartbeatFrequencyMS = 50
+	tickFrequencyMS      = 10 // server clock frequency
+	heartbeatFrequencyMS = 50 // leader heartbeat frequency
 	minElectionTimeoutMS = 300
 	maxElectionTimeoutMS = 800
+	gobNilDummyValue     = -1 // dummy value representing nil values encoded with gob
 )
 
 //
@@ -159,6 +160,15 @@ func (rf *Raft) getHighestReplicatedLogIndex() int {
 	return sortedMatchIndex[len(rf.peers)/2]
 }
 
+func (rf *Raft) getFirstLogIndex(term int) int {
+	for index, log := range rf.log {
+		if log.Term == term {
+			return index + 1
+		}
+	}
+	return -1
+}
+
 func (rf *Raft) hasMajority() bool {
 	return rf.votes > len(rf.peers)/2
 }
@@ -176,6 +186,8 @@ func (rf *Raft) forceLog(command interface{}) int {
 	rf.log = append(rf.log, LogEntry{Term: rf.currentTerm, Command: command})
 	index := len(rf.log)
 	rf.matchIndex[rf.me] = index
+	// TODO: Is there a better location to call this?
+	rf.persist()
 	return index
 }
 
@@ -220,28 +232,57 @@ func (rf *Raft) maybeVoteFor(candidate int, term int, logIndex int, logTerm int)
 	}
 
 	rf.votedFor = &candidate
+	// TODO: Is there a better location to call this?
+	rf.persist()
 	return true
 }
 
-func (rf *Raft) maybeAppend(term int, logIndex int, logTerm int, entries []LogEntry) bool {
+// if false, the first index of the conflicting term (if any) will be returned
+func (rf *Raft) canAppend(term int, logIndex int, logTerm int) (bool, int) {
 	validTerm := term >= rf.currentTerm
 	samePrevLog := logIndex <= 0 ||
 		(logIndex-1 < len(rf.log) && rf.log[logIndex-1].Term == logTerm)
 
-	if !(validTerm && samePrevLog) {
-		return false
+	// success
+	if validTerm && samePrevLog {
+		return true, -1
 	}
 
+	// correct term but conflicting logs
+	if validTerm {
+		conflictFirstIndex := 1
+
+		// first assume log is lagging
+		if len(rf.log) > 0 {
+			// conflictTerm = rf.log[len(rf.log)-1].Term
+			conflictFirstIndex = len(rf.log)
+		}
+
+		// if our log is not lagging but has actual conflicts
+		if logIndex <= len(rf.log) {
+			conflictTerm := rf.log[logIndex-1].Term
+			conflictFirstIndex = rf.getFirstLogIndex(conflictTerm)
+		}
+		return false, conflictFirstIndex
+	}
+
+	// incorrect term
+	return false, -1
+}
+
+func (rf *Raft) appendLog(logIndex int, entries []LogEntry) {
 	for _, entry := range entries {
-		if len(rf.log) > logIndex {
-			rf.log[logIndex] = entry
-		} else {
+		if len(rf.log) <= logIndex {
+			rf.log = append(rf.log, entry)
+		} else if rf.log[logIndex] != entry {
+			rf.log = rf.log[:logIndex]
 			rf.log = append(rf.log, entry)
 		}
 		logIndex++
 	}
 	rf.lastNewIndex = logIndex
-	return true
+	// TODO: Is there a better location to call this?
+	rf.persist()
 }
 
 func (rf *Raft) initState() {
@@ -264,8 +305,9 @@ func (rf *Raft) maybeBecomeFollower(term int) bool {
 	rf.state = follower
 	// TODO: Is the following necessary?
 	// rf.lastHeard = time.Now()
+	// TODO: Is there a better location to call this?
+	rf.persist()
 	return true
-
 }
 
 func (rf *Raft) becomeCandidate() {
@@ -277,6 +319,8 @@ func (rf *Raft) becomeCandidate() {
 	rf.lastHeard = time.Now()
 	rf.electionTimeout = genRandomDuration(minElectionTimeoutMS, maxElectionTimeoutMS)
 	rf.votes = 1
+	// TODO: Is there a better location to call this?
+	rf.persist()
 }
 
 func (rf *Raft) becomeLeader() {
@@ -308,13 +352,24 @@ func (rf *Raft) GetState() (int, bool) {
 //
 func (rf *Raft) persist() {
 	// Your code here (2C).
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := labgob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
+	buf := new(bytes.Buffer)
+	enc := labgob.NewEncoder(buf)
+	if err := enc.Encode(rf.currentTerm); err != nil {
+		log.Fatal(err)
+	}
+	// encode nil as gobNilDummyValue, since gob cannot encode nil pointers
+	votedFor := gobNilDummyValue
+	if rf.votedFor != nil {
+		votedFor = *rf.votedFor
+	}
+	if err := enc.Encode(votedFor); err != nil {
+		log.Fatal(err)
+	}
+	if err := enc.Encode(rf.log); err != nil {
+		log.Fatal(err)
+	}
+	data := buf.Bytes()
+	rf.persister.SaveRaftState(data)
 }
 
 //
@@ -326,8 +381,24 @@ func (rf *Raft) readPersist(data []byte) {
 	}
 	// Your code here (2C).
 	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := labgob.NewDecoder(r)
+	buf := bytes.NewBuffer(data)
+	dec := labgob.NewDecoder(buf)
+	if err := dec.Decode(&rf.currentTerm); err != nil {
+		log.Fatal(err)
+	}
+	var votedFor int
+	if err := dec.Decode(&votedFor); err != nil {
+		log.Fatal(err)
+	}
+	if votedFor == gobNilDummyValue {
+		rf.votedFor = nil
+	} else {
+		rf.votedFor = &votedFor
+	}
+	if err := dec.Decode(&rf.log); err != nil {
+		log.Fatal(err)
+	}
+
 	// var xxx
 	// var yyy
 	// if d.Decode(&xxx) != nil ||
@@ -379,8 +450,9 @@ type AppendEntriesArgs struct {
 // AppendEntries RPC reply structure.
 //
 type AppendEntriesReply struct {
-	Term    int
-	Success bool
+	Term               int
+	Success            bool
+	ConflictFirstIndex int // if failure, holds index of first entry with the conflicting term
 }
 
 //
@@ -409,8 +481,12 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	reply.Term = rf.currentTerm
-	reply.Success = rf.maybeAppend(args.Term, args.PrevLogIndex, args.PrevLogTerm, args.Entries)
-	if reply.Success && rf.commitIndex < args.LeaderCommit {
+	reply.Success, reply.ConflictFirstIndex = rf.canAppend(args.Term, args.PrevLogIndex, args.PrevLogTerm)
+	if !reply.Success {
+		return
+	}
+	rf.appendLog(args.PrevLogIndex, args.Entries)
+	if rf.commitIndex < args.LeaderCommit {
 		rf.updateCommitIndex(args.LeaderCommit)
 	}
 }
@@ -464,7 +540,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 		defer rf.mu.Unlock()
 
 		rf.maybeBecomeFollower(reply.Term)
-		if !rf.isLeader() {
+		if !rf.isLeader() || args.Term < reply.Term {
 			return
 		}
 
@@ -472,7 +548,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 			rf.nextIndex[server] = args.PrevLogIndex + len(args.Entries) + 1
 			rf.matchIndex[server] = rf.nextIndex[server] - 1
 		} else if retry {
-			rf.nextIndex[server] = args.PrevLogIndex
+			rf.nextIndex[server] = reply.ConflictFirstIndex
 			prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(server)
 			logDiff := rf.getLogDiff(server)
 			retryArgs := &AppendEntriesArgs{
@@ -562,11 +638,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	rf.initState()
-	go rf.tick()
-
-	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
+	rf.initState()                            // initialize state
+	rf.readPersist(persister.ReadRaftState()) // load any persisted state before a crash
+	go rf.tick()                              // start ticker goroutine
 
 	return rf
 }

@@ -1,3 +1,5 @@
+SHELL:=bash
+
 test:
 	go test
 
@@ -16,8 +18,17 @@ test-2b-untilfail:
 test-2c:
 	go test -run 2C
 
+test-2c-untilfail:
+	while make test-2c; do :; done
+
+time:
+	time go test
+
 time-2b:
 	time go test -run 2B
+
+time-2c:
+	time go test -run 2C
 
 race:
 	go test -race

@@ -61,10 +61,12 @@ const (
 //
 // Raft server states.
 //
+type state int
+
 const (
-	follower  = iota
-	candidate = iota
-	leader    = iota
+	follower state = iota
+	candidate
+	leader
 )
 
 //
@@ -110,7 +112,7 @@ type Raft struct {
 	nextIndex   []int
 	matchIndex  []int
 
-	state           int           // follower, candidate or leader
+	currentState    state         // follower, candidate or leader
 	lastHeard       time.Time     // time that last valid AppendEntries was received
 	electionTimeout time.Duration // election timeout
 	lastNewIndex    int           // index of the last log added in the current term
@@ -169,7 +171,7 @@ func (rf *Raft) hasMajority() bool {
 }
 
 func (rf *Raft) isLeader() bool {
-	return rf.state == leader
+	return rf.currentState == leader
 }
 
 func (rf *Raft) hasTimedOut(now time.Time) bool {
@@ -280,7 +282,7 @@ func (rf *Raft) appendLog(logIndex int, entries []LogEntry) {
 func (rf *Raft) initState() {
 	rf.nextIndex = make([]int, len(rf.peers))
 	rf.matchIndex = make([]int, len(rf.peers))
-	rf.state = follower
+	rf.currentState = follower
 	rf.lastHeard = time.Now()
 	rf.electionTimeout = genRandomDuration(minElectionTimeoutMS, maxElectionTimeoutMS)
 }
@@ -294,7 +296,7 @@ func (rf *Raft) maybeBecomeFollower(term int) bool {
 	rf.currentTerm = term
 	rf.votedFor = nil
 	rf.lastNewIndex = 0
-	rf.state = follower
+	rf.currentState = follower
 	// TODO: Is the following necessary?
 	// rf.lastHeard = time.Now()
 	// TODO: Is there a better location to call this?
@@ -307,7 +309,7 @@ func (rf *Raft) becomeCandidate() {
 	rf.currentTerm++
 	rf.votedFor = &rf.me
 	rf.lastNewIndex = 0
-	rf.state = candidate
+	rf.currentState = candidate
 	rf.lastHeard = time.Now()
 	rf.electionTimeout = genRandomDuration(minElectionTimeoutMS, maxElectionTimeoutMS)
 	rf.votes = 1
@@ -317,7 +319,7 @@ func (rf *Raft) becomeCandidate() {
 
 func (rf *Raft) becomeLeader() {
 	DPrintf("%v (term %v) becomes leader\n", rf.me, rf.currentTerm)
-	rf.state = leader
+	rf.currentState = leader
 	for i := range rf.peers {
 		rf.nextIndex[i] = len(rf.log) + 1
 		rf.matchIndex[i] = 0
@@ -510,7 +512,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs) {
 		rf.maybeBecomeFollower(reply.Term)
 
 		// terminate if original request expired
-		if rf.state != candidate || args.Term != rf.currentTerm {
+		if rf.currentState != candidate || args.Term != rf.currentTerm {
 			return
 		}
 
@@ -655,7 +657,7 @@ func (rf *Raft) tick() {
 	// always apply any unapplied commits
 	rf.applyCommits()
 
-	switch rf.state {
+	switch rf.currentState {
 	case leader:
 		// send AppendEntries RPC to lagging followers
 		for i := range rf.peers {

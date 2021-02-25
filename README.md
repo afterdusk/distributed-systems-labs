@@ -11,8 +11,7 @@
 - Data race-free
 
 ### 2B: Log
-- In-Progress
-  - Commits should be applied in separate goroutine
+- Completed
 - Passes tests
 - Data-race free
 

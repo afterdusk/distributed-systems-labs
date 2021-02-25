@@ -51,7 +51,8 @@ type ApplyMsg struct {
 // Program constants.
 //
 const (
-	tickFrequencyMS      = 10 // server clock frequency
+	tickFrequencyMS      = 10 // server tick clock frequency
+	applyFrequencyMS     = 10 // server apply clock frequency
 	heartbeatFrequencyMS = 50 // leader heartbeat frequency
 	minElectionTimeoutMS = 300
 	maxElectionTimeoutMS = 800
@@ -188,20 +189,6 @@ func (rf *Raft) forceLog(command interface{}) int {
 	return index
 }
 
-// applies all unapplied commits
-func (rf *Raft) applyCommits() {
-	for rf.lastApplied < rf.commitIndex && rf.lastApplied < len(rf.log) {
-		rf.lastApplied++
-		command := rf.log[rf.lastApplied-1].Command
-		applyMsg := ApplyMsg{
-			CommandValid: true,
-			Command:      command,
-			CommandIndex: rf.lastApplied,
-		}
-		rf.applyCh <- applyMsg
-	}
-}
-
 func (rf *Raft) updateCommitIndex(leaderCommit int) {
 	if rf.lastNewIndex < leaderCommit {
 		rf.commitIndex = rf.lastNewIndex
@@ -297,8 +284,6 @@ func (rf *Raft) maybeBecomeFollower(term int) bool {
 	rf.votedFor = nil
 	rf.lastNewIndex = 0
 	rf.currentState = follower
-	// TODO: Is the following necessary?
-	// rf.lastHeard = time.Now()
 	// TODO: Is there a better location to call this?
 	rf.persist()
 	return true
@@ -634,6 +619,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.initState()                            // initialize state
 	rf.readPersist(persister.ReadRaftState()) // load any persisted state before a crash
 	go rf.tick()                              // start ticker goroutine
+	go rf.apply()                             // start goroutine to apply commits in the background
 
 	return rf
 }
@@ -652,10 +638,6 @@ func (rf *Raft) tick() {
 	if !rf.killed() {
 		defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
 	}
-
-	// TODO: Perform this in a separate goroutine, as it may be blocking
-	// always apply any unapplied commits
-	rf.applyCommits()
 
 	switch rf.currentState {
 	case leader:
@@ -707,6 +689,32 @@ func (rf *Raft) tick() {
 			}
 			go rf.sendRequestVote(i, args)
 		}
+	}
+}
+
+//
+// Server routine that applies commits in the background.
+//
+func (rf *Raft) apply() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	// always reschedule this routine if server is not killed
+	if !rf.killed() {
+		defer time.AfterFunc(time.Duration(applyFrequencyMS)*time.Millisecond, rf.apply)
+	}
+
+	for rf.lastApplied < rf.commitIndex && rf.lastApplied < len(rf.log) {
+		applyMsg := ApplyMsg{
+			CommandValid: true,
+			Command:      rf.log[rf.lastApplied].Command,
+			CommandIndex: rf.lastApplied + 1,
+		}
+		// send message outside of CS as channel may block
+		rf.mu.Unlock()
+		rf.applyCh <- applyMsg
+		rf.mu.Lock()
+		rf.lastApplied++
 	}
 }
 

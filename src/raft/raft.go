@@ -51,9 +51,8 @@ type ApplyMsg struct {
 // Program constants.
 //
 const (
-	tickFrequencyMS      = 10 // server tick clock frequency
-	applyFrequencyMS     = 10 // server apply clock frequency
-	heartbeatFrequencyMS = 50 // leader heartbeat frequency
+	tickFrequencyMS      = 20  // server tick clock frequency
+	heartbeatFrequencyMS = 100 // leader heartbeat frequency
 	minElectionTimeoutMS = 300
 	maxElectionTimeoutMS = 800
 	gobNilDummyValue     = -1 // dummy value to replace nil values for encoding with gob
@@ -91,12 +90,13 @@ type LogEntry struct {
 // A Go object implementing a single Raft peer.
 //
 type Raft struct {
-	mu        sync.Mutex          // Lock to protect shared access to this peer's state
-	peers     []*labrpc.ClientEnd // RPC end points of all peers
-	persister *Persister          // Object to hold this peer's persisted state
-	me        int                 // this peer's index into peers[]
-	dead      int32               // set by Kill()
-	applyCh   chan ApplyMsg       // channel to send ApplyMsg to service
+	mu         sync.Mutex          // Lock to protect shared access to this peer's state
+	commitCond *sync.Cond          // Condition variable to synchronize on commit index
+	peers      []*labrpc.ClientEnd // RPC end points of all peers
+	persister  *Persister          // Object to hold this peer's persisted state
+	me         int                 // this peer's index into peers[]
+	dead       int32               // set by Kill()
+	applyCh    chan ApplyMsg       // channel to send ApplyMsg to service
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -189,18 +189,25 @@ func (rf *Raft) forceLog(command interface{}) int {
 	return index
 }
 
-func (rf *Raft) updateCommitIndex(leaderCommit int) {
+// sets commit index and broadcasts event via commitCond
+// commitIndex should never be set outside of this function
+func (rf *Raft) setCommitIndex(index int) {
+	rf.commitIndex = index
+	rf.commitCond.Broadcast()
+}
+
+func (rf *Raft) updateFollowerCommit(leaderCommit int) {
 	if rf.lastNewIndex < leaderCommit {
-		rf.commitIndex = rf.lastNewIndex
+		rf.setCommitIndex(rf.lastNewIndex)
 	} else {
-		rf.commitIndex = leaderCommit
+		rf.setCommitIndex(leaderCommit)
 	}
 }
 
 func (rf *Raft) commitReplicatedLogs() {
 	replicatedLogIndex := rf.getHighestReplicatedLogIndex()
 	if replicatedLogIndex > rf.commitIndex && rf.log[replicatedLogIndex-1].Term == rf.currentTerm {
-		rf.commitIndex = replicatedLogIndex
+		rf.setCommitIndex(replicatedLogIndex)
 	}
 }
 
@@ -455,7 +462,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 	rf.appendLog(args.PrevLogIndex, args.Entries)
 	if rf.commitIndex < args.LeaderCommit {
-		rf.updateCommitIndex(args.LeaderCommit)
+		rf.updateFollowerCommit(args.LeaderCommit)
 	}
 }
 
@@ -607,6 +614,7 @@ func (rf *Raft) killed() bool {
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
+	rf.commitCond = sync.NewCond(&rf.mu)
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
@@ -631,13 +639,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 // if server is candidate or server, start leader election when it hasn't heard from leader for a while.
 //
 func (rf *Raft) tick() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
 	// always reschedule this routine if server is not killed
 	if !rf.killed() {
 		defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
 	}
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
 	switch rf.currentState {
 	case leader:
@@ -696,14 +704,19 @@ func (rf *Raft) tick() {
 // Server routine that applies commits in the background.
 //
 func (rf *Raft) apply() {
+	// always repeat this routine if server is not killed
+	if !rf.killed() {
+		defer rf.apply()
+	}
+
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	// always reschedule this routine if server is not killed
-	if !rf.killed() {
-		defer time.AfterFunc(time.Duration(applyFrequencyMS)*time.Millisecond, rf.apply)
+	// relinquish lock and sleep if no work to be done
+	if rf.lastApplied == rf.commitIndex || rf.lastApplied == len(rf.log) {
+		rf.commitCond.Wait()
 	}
-
+	// apply commits up until commitIndex
 	for rf.lastApplied < rf.commitIndex && rf.lastApplied < len(rf.log) {
 		applyMsg := ApplyMsg{
 			CommandValid: true,

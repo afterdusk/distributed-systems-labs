@@ -639,64 +639,62 @@ func Make(peers []*labrpc.ClientEnd, me int,
 // if server is candidate or server, start leader election when it hasn't heard from leader for a while.
 //
 func (rf *Raft) tick() {
-	// always reschedule this routine if server is not killed
-	if !rf.killed() {
-		defer time.AfterFunc(time.Duration(tickFrequencyMS)*time.Millisecond, rf.tick)
-	}
+	for !rf.killed() {
+		rf.mu.Lock()
 
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	switch rf.currentState {
-	case leader:
-		// send AppendEntries RPC to lagging followers
-		for i := range rf.peers {
-			if i == rf.me {
-				continue
+		switch rf.currentState {
+		case leader:
+			// send AppendEntries RPC to lagging followers
+			for i := range rf.peers {
+				if i == rf.me {
+					continue
+				}
+				logDiff := rf.getLogDiff(i)
+				if len(logDiff) == 0 {
+					continue
+				}
+				prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(i)
+				args := &AppendEntriesArgs{
+					Term:         rf.currentTerm,
+					PrevLogIndex: prevLogIndex,
+					PrevLogTerm:  prevLogTerm,
+					Entries:      logDiff,
+					LeaderCommit: rf.commitIndex,
+				}
+				go rf.sendAppendEntries(i, args, true)
 			}
-			logDiff := rf.getLogDiff(i)
-			if len(logDiff) == 0 {
-				continue
+			rf.commitReplicatedLogs()
+		case candidate:
+			// count votes
+			if hasMajority := rf.hasMajority(); hasMajority {
+				rf.becomeLeader()
+				go rf.heartbeat()
+				break
 			}
-			prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(i)
-			args := &AppendEntriesArgs{
+			fallthrough
+		case follower:
+			if !rf.hasTimedOut(time.Now()) {
+				break
+			}
+			// leader election
+			rf.becomeCandidate()
+			lastLogIndex, lastLogTerm := rf.getLastLogIndexAndTerm()
+			args := &RequestVoteArgs{
 				Term:         rf.currentTerm,
-				PrevLogIndex: prevLogIndex,
-				PrevLogTerm:  prevLogTerm,
-				Entries:      logDiff,
-				LeaderCommit: rf.commitIndex,
+				CandidateID:  rf.me,
+				LastLogIndex: lastLogIndex,
+				LastLogTerm:  lastLogTerm,
 			}
-			go rf.sendAppendEntries(i, args, true)
-		}
-		rf.commitReplicatedLogs()
-	case candidate:
-		// count votes
-		if hasMajority := rf.hasMajority(); hasMajority {
-			rf.becomeLeader()
-			go rf.heartbeat()
-			break
-		}
-		fallthrough
-	case follower:
-		if !rf.hasTimedOut(time.Now()) {
-			break
+			for i := range rf.peers {
+				if i == rf.me {
+					continue
+				}
+				go rf.sendRequestVote(i, args)
+			}
 		}
 
-		// leader election
-		rf.becomeCandidate()
-		lastLogIndex, lastLogTerm := rf.getLastLogIndexAndTerm()
-		args := &RequestVoteArgs{
-			Term:         rf.currentTerm,
-			CandidateID:  rf.me,
-			LastLogIndex: lastLogIndex,
-			LastLogTerm:  lastLogTerm,
-		}
-		for i := range rf.peers {
-			if i == rf.me {
-				continue
-			}
-			go rf.sendRequestVote(i, args)
-		}
+		rf.mu.Unlock()
+		time.Sleep(tickFrequencyMS * time.Millisecond)
 	}
 }
 
@@ -704,30 +702,29 @@ func (rf *Raft) tick() {
 // Server routine that applies commits in the background.
 //
 func (rf *Raft) apply() {
-	// always repeat this routine if server is not killed
-	if !rf.killed() {
-		defer rf.apply()
-	}
-
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
-	// relinquish lock and sleep if no work to be done
-	if rf.lastApplied == rf.commitIndex || rf.lastApplied == len(rf.log) {
-		rf.commitCond.Wait()
-	}
-	// apply commits up until commitIndex
-	for rf.lastApplied < rf.commitIndex && rf.lastApplied < len(rf.log) {
-		applyMsg := ApplyMsg{
-			CommandValid: true,
-			Command:      rf.log[rf.lastApplied].Command,
-			CommandIndex: rf.lastApplied + 1,
-		}
-		// send message outside of CS as channel may block
-		rf.mu.Unlock()
-		rf.applyCh <- applyMsg
+	for !rf.killed() {
 		rf.mu.Lock()
-		rf.lastApplied++
+
+		// relinquish lock and sleep if no work to be done
+		if rf.lastApplied == rf.commitIndex || rf.lastApplied == len(rf.log) {
+			rf.commitCond.Wait()
+		}
+
+		// apply commits up until commitIndex
+		for rf.lastApplied < rf.commitIndex && rf.lastApplied < len(rf.log) {
+			applyMsg := ApplyMsg{
+				CommandValid: true,
+				Command:      rf.log[rf.lastApplied].Command,
+				CommandIndex: rf.lastApplied + 1,
+			}
+			// send message outside of CS as channel may block
+			rf.mu.Unlock()
+			rf.applyCh <- applyMsg
+			rf.mu.Lock()
+			rf.lastApplied++
+		}
+
+		rf.mu.Unlock()
 	}
 }
 
@@ -735,31 +732,31 @@ func (rf *Raft) apply() {
 // Leader routine that sends periodic AppendEntries heartbeats to peers.
 //
 func (rf *Raft) heartbeat() {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
+	for !rf.killed() {
+		rf.mu.Lock()
 
-	// stop this routine if server is deposed
-	if !rf.isLeader() {
-		return
-	}
-
-	// always reschedule this routine if server is not killed
-	if !rf.killed() {
-		defer time.AfterFunc(time.Duration(heartbeatFrequencyMS)*time.Millisecond, rf.heartbeat)
-	}
-
-	// send empty AppendEntries
-	for i := range rf.peers {
-		if i == rf.me {
-			continue
+		// stop this routine if server is deposed
+		if !rf.isLeader() {
+			rf.mu.Unlock()
+			return
 		}
-		prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(i)
-		args := &AppendEntriesArgs{
-			Term:         rf.currentTerm,
-			PrevLogIndex: prevLogIndex,
-			PrevLogTerm:  prevLogTerm,
-			LeaderCommit: rf.commitIndex,
+
+		// send empty AppendEntries
+		for i := range rf.peers {
+			if i == rf.me {
+				continue
+			}
+			prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(i)
+			args := &AppendEntriesArgs{
+				Term:         rf.currentTerm,
+				PrevLogIndex: prevLogIndex,
+				PrevLogTerm:  prevLogTerm,
+				LeaderCommit: rf.commitIndex,
+			}
+			go rf.sendAppendEntries(i, args, false)
 		}
-		go rf.sendAppendEntries(i, args, false)
+
+		rf.mu.Unlock()
+		time.Sleep(heartbeatFrequencyMS * time.Millisecond)
 	}
 }

@@ -16,7 +16,6 @@
 - Data-race free
 
 ### 2C: Persistence
-- In-Progress
-  - Cleanup
+- Completed
 - Passes tests
 - Data race-free

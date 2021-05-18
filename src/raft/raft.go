@@ -485,7 +485,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 		rf.maybeBecomeFollower(reply.Term)
 
 		// terminate if original request expired
-		if rf.currentState != leader || args.Term != rf.currentTerm {
+		if args.Term != rf.currentTerm {
 			return
 		}
 

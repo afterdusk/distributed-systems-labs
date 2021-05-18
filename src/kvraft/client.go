@@ -10,6 +10,8 @@ import (
 type Clerk struct {
 	servers []*labrpc.ClientEnd
 	// You will have to modify this struct.
+	id         int64
+	lastLeader int
 }
 
 func nrand() int64 {
@@ -23,6 +25,7 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
 	// You'll have to add code here.
+	ck.id = nrand()
 	return ck
 }
 
@@ -39,9 +42,26 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) Get(key string) string {
-
-	// You will have to modify this function.
-	return ""
+	// assume no collision with nrand()
+	args := &GetArgs{
+		Key: key,
+		Id:  ck.id,
+		Seq: nrand(),
+	}
+	DPrintf("[Client %v][Seq %v] Get: Key %v", ck.id, args.Seq, key)
+	for {
+		for i := 0; i < len(ck.servers); i++ {
+			// for i, server := range ck.servers {
+			reply := &GetReply{}
+			ok := ck.servers[(ck.lastLeader+i)%len(ck.servers)].Call("KVServer.Get", args, reply)
+			if !ok || reply.Err != "" {
+				continue
+			}
+			ck.lastLeader = (ck.lastLeader + i) % len(ck.servers)
+			DPrintf("[Client %v][Seq %v] Get Success Key %v, Value %v", ck.id, args.Seq, key, reply.Value)
+			return reply.Value
+		}
+	}
 }
 
 //
@@ -55,12 +75,36 @@ func (ck *Clerk) Get(key string) string {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) PutAppend(key string, value string, op string) {
-	// You will have to modify this function.
+	// assume no collision with nrand()
+	args := &PutAppendArgs{
+		Key:   key,
+		Value: value,
+		Op:    op,
+		Id:    ck.id,
+		Seq:   nrand(),
+	}
+	DPrintf("[Client %v][Seq %v] PutAppend: Key %v Value %v", ck.id, args.Seq, key, value)
+	for {
+		for i := 0; i < len(ck.servers); i++ {
+			leader := (ck.lastLeader + i) % len(ck.servers)
+
+			reply := &PutAppendReply{}
+			ok := ck.servers[leader].Call("KVServer.PutAppend", args, reply)
+			if !ok || reply.Err != "" {
+				// DPrintf("[Client %v] PutAppend Error with server %v (ok %v, err %v) Key %v, Value %v, Op %v\n", ck.id, i, ok, reply.Err, key, value, op)
+				continue
+			}
+			DPrintf("[Client %v][Seq %v] PutAppend Success with server %v Key %v, Value %v, Op %v\n", ck.id, args.Seq, i, key, value, op)
+			ck.lastLeader = leader
+			return
+		}
+	}
 }
 
 func (ck *Clerk) Put(key string, value string) {
 	ck.PutAppend(key, value, "Put")
 }
+
 func (ck *Clerk) Append(key string, value string) {
 	ck.PutAppend(key, value, "Append")
 }

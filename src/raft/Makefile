@@ -33,6 +33,9 @@ time-2c:
 race:
 	go test -race
 
+race-untilfail:
+	while make race; do :; done
+
 race-2a:
 	go test -race -run 2A
 

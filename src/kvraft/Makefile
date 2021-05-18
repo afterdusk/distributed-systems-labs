@@ -30,6 +30,9 @@ race:
 race-3a:
 	go test -race -run 3A
 
+race-3a-untilfail:
+	while make race-3a; do :; done
+
 race-3b:
 	go test -race -run 3B
 

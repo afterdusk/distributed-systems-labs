@@ -13,7 +13,7 @@
 ### 2B: Log
 - Completed
 - Passes tests
-- Data-race free
+- Data race-free
 
 ### 2C: Persistence
 - Completed
@@ -23,6 +23,6 @@
 ## [Lab 3: Fault-tolerant Key/Value Service](http://nil.csail.mit.edu/6.824/2020/labs/lab-kvraft.html)
 ### 3A: Key/Value Service
 - In-progress
-  - Make data race-free
   - Cleanup
 - Passes tests
+- Data race-free

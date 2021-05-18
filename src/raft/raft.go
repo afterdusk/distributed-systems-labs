@@ -173,7 +173,9 @@ func (rf *Raft) getPrevLogIndexAndTerm(server int) (int, int) {
 func (rf *Raft) getLogDiff(server int) []LogEntry {
 	start := rf.nextIndex[server] - 1
 	end := len(rf.log)
-	return rf.log[start:end]
+	logDiff := make([]LogEntry, end-start)
+	copy(logDiff, rf.log[start:end])
+	return logDiff
 }
 
 // returns highest log entry replicated on a majority of servers

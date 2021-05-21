@@ -393,6 +393,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	// vote for candidate
 	rf.setTermAndVotedFor(rf.currentTerm, &args.CandidateID)
+
+	// reset last heard to prevent timeout before receiving heartbeat
+	rf.lastHeard = time.Now()
 }
 
 //

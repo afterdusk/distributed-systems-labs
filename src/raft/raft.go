@@ -127,6 +127,7 @@ type Raft struct {
 	electionTimeout time.Duration // election timeout
 	lastNewIndex    int           // index of the last log added in the current term
 	votes           int           // number of votes received in current term
+	snapshotMsg     *ApplyMsg     // snapshot to apply
 }
 
 // sets commit index and broadcasts event via commitCond
@@ -531,13 +532,15 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		SnapshotTerm:  args.LastIncludedTerm,
 		SnapshotIndex: args.LastIncludedIndex,
 	}
-	rf.mu.Unlock()
-	// TODO: If mutex is not released, two InstallSnapshots in quick succession will result in this lock beind held and preventing
-	// CondInstallSnapshot from acquiring lock
-	rf.applyCh <- applyMsg
-	rf.mu.Lock()
-	rf.lastApplied = args.LastIncludedIndex
-	DPrintf("[Raft %v][InstallSnapshot] applyMsg: %v, rf.lastApplied: %v\n", rf.Me, applyMsg, rf.lastApplied)
+	// rf.mu.Unlock()
+	// // TODO: If mutex is not released, two InstallSnapshots in quick succession will result in this lock beind held and preventing
+	// // CondInstallSnapshot from acquiring lock
+	// rf.applyCh <- applyMsg
+	// rf.mu.Lock()
+	// rf.lastApplied = args.LastIncludedIndex
+	rf.snapshotMsg = &applyMsg
+	rf.commitCond.Broadcast()
+	DPrintf("[Raft %v][InstallSnapshot] snapshotMsg: %v\n", rf.Me, *rf.snapshotMsg)
 }
 
 //
@@ -800,8 +803,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 			SnapshotTerm:  rf.lastIncludedTerm,
 			SnapshotIndex: rf.lastIncludedIndex,
 		}
-		rf.applyCh <- applyMsg
-		rf.lastApplied = rf.lastIncludedIndex
+		// rf.applyCh <- applyMsg
+		// rf.lastApplied = rf.lastIncludedIndex
+		rf.snapshotMsg = &applyMsg
 		DPrintf("[Raft %v][Make] rf.lastIncludedIndex: %v, rf.lastApplied: %v\n", rf.Me, rf.lastIncludedIndex, rf.lastApplied)
 	}
 	go rf.tick()  // start ticker goroutine
@@ -904,8 +908,20 @@ func (rf *Raft) apply() {
 		// DPrintf("[Raft %v][Lock][apply first]", rf.Me)
 
 		// relinquish lock and sleep if no work to be done
-		if rf.lastApplied == rf.commitIndex || rf.lastApplied == len(rf.log)+rf.lastIncludedIndex {
+		if (rf.lastApplied == rf.commitIndex || rf.lastApplied == len(rf.log)+rf.lastIncludedIndex) && rf.snapshotMsg == nil {
 			rf.commitCond.Wait()
+		}
+
+		if rf.snapshotMsg != nil {
+			if rf.snapshotMsg.SnapshotIndex > rf.lastApplied {
+				DPrintf("[Raft %v][apply] Snapshot: %v", rf.Me, *rf.snapshotMsg)
+				// send message outside of CS as channel may block
+				rf.mu.Unlock()
+				rf.applyCh <- *rf.snapshotMsg
+				rf.mu.Lock()
+				rf.lastApplied = rf.snapshotMsg.SnapshotIndex
+			}
+			rf.snapshotMsg = nil
 		}
 
 		// apply commits up until commitIndex

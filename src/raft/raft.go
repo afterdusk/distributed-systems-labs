@@ -913,15 +913,17 @@ func (rf *Raft) apply() {
 		}
 
 		if rf.snapshotMsg != nil {
-			if rf.snapshotMsg.SnapshotIndex > rf.lastApplied {
-				DPrintf("[Raft %v][apply] Snapshot: %v", rf.Me, *rf.snapshotMsg)
+			applyMsg := *rf.snapshotMsg
+			rf.snapshotMsg = nil
+			if applyMsg.SnapshotIndex > rf.lastApplied {
+				DPrintf("[Raft %v][apply] Snapshot: %v", rf.Me, applyMsg)
 				// send message outside of CS as channel may block
 				rf.mu.Unlock()
-				rf.applyCh <- *rf.snapshotMsg
+				rf.applyCh <- applyMsg
 				rf.mu.Lock()
-				rf.lastApplied = rf.snapshotMsg.SnapshotIndex
+				rf.lastApplied = applyMsg.SnapshotIndex
 			}
-			rf.snapshotMsg = nil
+
 		}
 
 		// apply commits up until commitIndex

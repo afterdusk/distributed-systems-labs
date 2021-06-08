@@ -1,6 +1,7 @@
 pkg/
 api.key
 *-handin.tar.gz
+.vscode/
 
 # map reduce
 src/main/mr-[0-9]*-[0-9]*

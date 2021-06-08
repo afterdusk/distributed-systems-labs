@@ -628,7 +628,11 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 				go rf.sendInstallSnapshot(server, installSnapshotArgs)
 				return
 			}
-			rf.nextIndex[server] = reply.ConflictFirstIndex
+			if reply.ConflictFirstIndex <= rf.lastIncludedIndex+len(rf.log) {
+				rf.nextIndex[server] = reply.ConflictFirstIndex
+			} else {
+				rf.nextIndex[server] = rf.lastIncludedIndex + len(rf.log) + 1
+			}
 			prevLogIndex, prevLogTerm := rf.getPrevLogIndexAndTerm(server)
 			logDiff := rf.getLogDiff(server)
 			retryArgs := &AppendEntriesArgs{
@@ -753,11 +757,13 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	defer rf.mu.Unlock()
 
 	DPrintf("[Raft %v][Snapshot][Pre-truncation] index: %v, rf.lastIncludedIndex: %v, len(rf.log): %v\n", rf.Me, index, rf.lastIncludedIndex, len(rf.log))
-	rf.lastIncludedTerm = rf.log[index-1-rf.lastIncludedIndex].Term
-	rf.clearLog(index)
-	for i := range rf.peers {
-		if rf.nextIndex[i] <= index+1 {
-			rf.nextIndex[i] = index + 1
+	if index > rf.lastIncludedIndex {
+		rf.lastIncludedTerm = rf.log[index-1-rf.lastIncludedIndex].Term
+		rf.clearLog(index)
+		for i := range rf.peers {
+			if rf.nextIndex[i] <= index+1 {
+				rf.nextIndex[i] = index + 1
+			}
 		}
 	}
 	DPrintf("[Raft %v][Snapshot][Post-truncation] index: %v, rf.lastIncludedIndex: %v, len(rf.log): %v, snapshot: %v", rf.Me, index, rf.lastIncludedIndex, len(rf.log), snapshot)

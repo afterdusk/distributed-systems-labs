@@ -1,6 +1,7 @@
 package kvraft
 
 import (
+	"bytes"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -220,9 +221,31 @@ func (kv *KVServer) tick() {
 					kv.lastAppliedOp[op.ClientId] = op
 					kv.requestCond.Broadcast()
 				}
+			} else if applyMsg.SnapshotValid {
+				buf := bytes.NewBuffer(applyMsg.Snapshot)
+				dec := labgob.NewDecoder(buf)
+				if err := dec.Decode(&kv.store); err != nil {
+					log.Fatal(err)
+				}
+				if err := dec.Decode(&kv.lastAppliedOp); err != nil {
+					log.Fatal(err)
+				}
+				kv.rf.CondInstallSnapshot(applyMsg.SnapshotTerm, applyMsg.SnapshotIndex, applyMsg.Snapshot)
+				kv.lastAppliedIndex = applyMsg.SnapshotIndex
 			}
 			kv.mu.Unlock()
 		default:
+			if kv.maxraftstate != -1 && kv.rf.Size() > kv.maxraftstate {
+				buf := new(bytes.Buffer)
+				enc := labgob.NewEncoder(buf)
+				if err := enc.Encode(kv.store); err != nil {
+					log.Fatal(err)
+				}
+				if err := enc.Encode(kv.lastAppliedOp); err != nil {
+					log.Fatal(err)
+				}
+				kv.rf.Snapshot(kv.lastAppliedIndex, buf.Bytes())
+			}
 			kv.requestCond.Broadcast()
 		}
 	}

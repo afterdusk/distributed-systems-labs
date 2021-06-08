@@ -26,3 +26,9 @@
   - Cleanup
 - Passes tests
 - Data race-free
+
+### 3B: Log Compaction
+- In-progress
+  - Cleanup
+- Passes tests
+- Data race-free

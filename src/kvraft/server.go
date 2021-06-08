@@ -1,9 +1,11 @@
 package kvraft
 
 import (
+	"bytes"
 	"log"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"../labgob"
 	"../labrpc"
@@ -19,10 +21,10 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
-type Opcode int
+type opcode int
 
 const (
-	getOp Opcode = iota
+	getOp opcode = iota
 	putOp
 	appendOp
 )
@@ -31,7 +33,7 @@ type Op struct {
 	// Your definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
-	Code  Opcode
+	Code  opcode
 	Key   string
 	Value string
 	RequestMeta
@@ -60,13 +62,11 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	defer kv.mu.Unlock()
 	defer kv.tickCond.Broadcast()
 
-	op := Op{
+	index, _, ok := kv.rf.Start(Op{
 		Code:        getOp,
 		Key:         args.Key,
 		RequestMeta: args.RequestMeta,
-	}
-
-	index, _, ok := kv.rf.Start(op)
+	})
 	if !ok {
 		reply.Err = ErrWrongLeader
 		return
@@ -74,10 +74,11 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 
 	kv.requestIndexQueue = append(kv.requestIndexQueue, index)
 	defer func() { kv.requestIndexQueue = kv.requestIndexQueue[1:] }()
+	startTime := time.Now()
 
 	for kv.lastAppliedIndex < index {
 		kv.requestCond.Wait()
-		if _, isLeader := kv.rf.GetState(); !isLeader {
+		if _, isLeader := kv.rf.GetState(); !isLeader || kv.killed() || startTime.Add(time.Second).Before(time.Now()) {
 			reply.Err = ErrWrongLeader
 			return
 		}
@@ -101,14 +102,13 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	if args.Op == "Append" {
 		code = appendOp
 	}
-	op := Op{
+
+	index, _, ok := kv.rf.Start(Op{
 		Code:        code,
 		Key:         args.Key,
 		Value:       args.Value,
 		RequestMeta: args.RequestMeta,
-	}
-
-	index, _, ok := kv.rf.Start(op)
+	})
 	if !ok {
 		reply.Err = ErrWrongLeader
 		return
@@ -116,10 +116,11 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 
 	kv.requestIndexQueue = append(kv.requestIndexQueue, index)
 	defer func() { kv.requestIndexQueue = kv.requestIndexQueue[1:] }()
+	startTime := time.Now()
 
 	for kv.lastAppliedIndex < index {
 		kv.requestCond.Wait()
-		if _, isLeader := kv.rf.GetState(); !isLeader {
+		if _, isLeader := kv.rf.GetState(); !isLeader || kv.killed() || startTime.Add(time.Second).Before(time.Now()) {
 			reply.Err = ErrWrongLeader
 			return
 		}
@@ -218,9 +219,31 @@ func (kv *KVServer) tick() {
 					kv.lastAppliedOp[op.ClientId] = op
 					kv.requestCond.Broadcast()
 				}
+			} else if applyMsg.SnapshotValid {
+				buf := bytes.NewBuffer(applyMsg.Snapshot)
+				dec := labgob.NewDecoder(buf)
+				if err := dec.Decode(&kv.store); err != nil {
+					log.Fatal(err)
+				}
+				if err := dec.Decode(&kv.lastAppliedOp); err != nil {
+					log.Fatal(err)
+				}
+				kv.rf.CondInstallSnapshot(applyMsg.SnapshotTerm, applyMsg.SnapshotIndex, applyMsg.Snapshot)
+				kv.lastAppliedIndex = applyMsg.SnapshotIndex
 			}
 			kv.mu.Unlock()
 		default:
+			if kv.maxraftstate != -1 && kv.rf.Size() > kv.maxraftstate {
+				buf := new(bytes.Buffer)
+				enc := labgob.NewEncoder(buf)
+				if err := enc.Encode(kv.store); err != nil {
+					log.Fatal(err)
+				}
+				if err := enc.Encode(kv.lastAppliedOp); err != nil {
+					log.Fatal(err)
+				}
+				kv.rf.Snapshot(kv.lastAppliedIndex, buf.Bytes())
+			}
 			kv.requestCond.Broadcast()
 		}
 	}

@@ -201,12 +201,16 @@ func (kv *KVServer) tick() {
 		case applyMsg := <-kv.applyCh:
 			kv.mu.Lock()
 
-			for len(kv.requestIndexQueue) != 0 && kv.lastAppliedIndex == kv.requestIndexQueue[0] {
+			// DPrintf("[KVServer %v][tick] CommandValid: %v, SnapshotValid: %v\n", kv.rf.Me, applyMsg.CommandValid, applyMsg.SnapshotValid)
+
+			for len(kv.requestIndexQueue) != 0 && kv.lastAppliedIndex == kv.requestIndexQueue[0] && !kv.killed() {
+				DPrintf("[KVServer %v][tick] Waiting for %v", kv.rf.Me, kv.requestIndexQueue[0])
 				kv.tickCond.Wait()
 			}
 
 			if applyMsg.CommandValid {
 				if op, ok := applyMsg.Command.(Op); ok {
+					DPrintf("[KVServer %v][tick][CommandValid] applyMsg.CommandIndex: %v\n", kv.rf.Me, applyMsg.CommandIndex)
 					if kv.lastAppliedOp[op.ClientId].RequestId != op.RequestId {
 						switch op.Code {
 						case getOp:
@@ -219,9 +223,11 @@ func (kv *KVServer) tick() {
 					}
 					kv.lastAppliedIndex = applyMsg.CommandIndex
 					kv.lastAppliedOp[op.ClientId] = op
+					// DPrintf("[KVServer %v][tick]About to broadcast", kv.rf.Me)
 					kv.requestCond.Broadcast()
 				}
 			} else if applyMsg.SnapshotValid {
+				DPrintf("[KVServer %v][tick][SnapshotValid] applyMsg.SnapshotIndex: %v\n", kv.rf.Me, applyMsg.SnapshotIndex)
 				buf := bytes.NewBuffer(applyMsg.Snapshot)
 				dec := labgob.NewDecoder(buf)
 				if err := dec.Decode(&kv.store); err != nil {

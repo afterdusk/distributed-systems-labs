@@ -60,10 +60,10 @@ func spawn_clients_and_wait(t *testing.T, cfg *config, ncli int, fn func(me int,
 		ca[cli] = make(chan bool)
 		go run_client(t, cfg, cli, ca[cli], fn)
 	}
-	// log.Printf("spawn_clients_and_wait: waiting for clients")
+	fmt.Printf("spawn_clients_and_wait: waiting for clients")
 	for cli := 0; cli < ncli; cli++ {
 		ok := <-ca[cli]
-		// log.Printf("spawn_clients_and_wait: client %d is done\n", cli)
+		fmt.Printf("spawn_clients_and_wait: client %d is done\n", cli)
 		if ok == false {
 			t.Fatalf("failure")
 		}
@@ -192,7 +192,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 		clnts[i] = make(chan int)
 	}
 	for i := 0; i < 3; i++ {
-		// log.Printf("Iteration %v\n", i)
+		fmt.Printf("Iteration %v\n", i)
 		atomic.StoreInt32(&done_clients, 0)
 		atomic.StoreInt32(&done_partitioner, 0)
 		go spawn_clients_and_wait(t, cfg, nclients, func(cli int, myck *Clerk, t *testing.T) {
@@ -206,12 +206,12 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 			for atomic.LoadInt32(&done_clients) == 0 {
 				if (rand.Int() % 1000) < 500 {
 					nv := "x " + strconv.Itoa(cli) + " " + strconv.Itoa(j) + " y"
-					// log.Printf("%d: client new append %v\n", cli, nv)
+					fmt.Printf("%d: client new append %v\n", cli, nv)
 					Append(cfg, myck, key, nv)
 					last = NextValue(last, nv)
 					j++
 				} else {
-					// log.Printf("%d: client new get %v\n", cli, key)
+					fmt.Printf("%d: client new get %v\n", cli, key)
 					v := Get(cfg, myck, key)
 					if v != last {
 						log.Fatalf("get wrong value, key %v, wanted:\n%v\n, got\n%v\n", key, last, v)
@@ -231,7 +231,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 		atomic.StoreInt32(&done_partitioner, 1) // tell partitioner to quit
 
 		if partitions {
-			// log.Printf("wait for partitioner\n")
+			fmt.Printf("wait for partitioner\n")
 			<-ch_partitioner
 			// reconnect network and submit a request. A client may
 			// have submitted a request in a minority.  That request
@@ -243,14 +243,14 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 		}
 
 		if crash {
-			// log.Printf("shutdown servers\n")
+			fmt.Printf("shutdown servers\n")
 			for i := 0; i < nservers; i++ {
 				cfg.ShutdownServer(i)
 			}
 			// Wait for a while for servers to shutdown, since
 			// shutdown isn't a real crash and isn't instantaneous
 			time.Sleep(electionTimeout)
-			// log.Printf("restart servers\n")
+			fmt.Printf("restart servers\n")
 			// crash and re-start all
 			for i := 0; i < nservers; i++ {
 				cfg.StartServer(i)
@@ -258,15 +258,15 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 			cfg.ConnectAll()
 		}
 
-		// log.Printf("wait for clients\n")
+		fmt.Printf("wait for clients\n")
 		for i := 0; i < nclients; i++ {
-			// log.Printf("read from clients %d\n", i)
+			fmt.Printf("read from clients %d\n", i)
 			j := <-clnts[i]
 			// if j < 10 {
-			// 	log.Printf("Warning: client %d managed to perform only %d put operations in 1 sec?\n", i, j)
+			// 	fmt.Printf("Warning: client %d managed to perform only %d put operations in 1 sec?\n", i, j)
 			// }
 			key := strconv.Itoa(i)
-			// log.Printf("Check %v for client %d\n", j, i)
+			fmt.Printf("Check %v for client %d\n", j, i)
 			v := Get(cfg, ck, key)
 			checkClntAppends(t, i, v, j)
 		}
@@ -335,7 +335,7 @@ func GenericTestLinearizability(t *testing.T, part string, nclients int, nserver
 		clnts[i] = make(chan int)
 	}
 	for i := 0; i < 3; i++ {
-		// log.Printf("Iteration %v\n", i)
+		// fmt.Printf("Iteration %v\n", i)
 		atomic.StoreInt32(&done_clients, 0)
 		atomic.StoreInt32(&done_partitioner, 0)
 		go spawn_clients_and_wait(t, cfg, nclients, func(cli int, myck *Clerk, t *testing.T) {
@@ -381,7 +381,7 @@ func GenericTestLinearizability(t *testing.T, part string, nclients int, nserver
 		atomic.StoreInt32(&done_partitioner, 1) // tell partitioner to quit
 
 		if partitions {
-			// log.Printf("wait for partitioner\n")
+			// fmt.Printf("wait for partitioner\n")
 			<-ch_partitioner
 			// reconnect network and submit a request. A client may
 			// have submitted a request in a minority.  That request
@@ -393,14 +393,14 @@ func GenericTestLinearizability(t *testing.T, part string, nclients int, nserver
 		}
 
 		if crash {
-			// log.Printf("shutdown servers\n")
+			// fmt.Printf("shutdown servers\n")
 			for i := 0; i < nservers; i++ {
 				cfg.ShutdownServer(i)
 			}
 			// Wait for a while for servers to shutdown, since
 			// shutdown isn't a real crash and isn't instantaneous
 			time.Sleep(electionTimeout)
-			// log.Printf("restart servers\n")
+			// fmt.Printf("restart servers\n")
 			// crash and re-start all
 			for i := 0; i < nservers; i++ {
 				cfg.StartServer(i)
@@ -446,21 +446,25 @@ func GenericTestLinearizability(t *testing.T, part string, nclients int, nserver
 }
 
 func TestBasic3A(t *testing.T) {
+	t.Skip()
 	// Test: one client (3A) ...
 	GenericTest(t, "3A", 1, false, false, false, -1)
 }
 
 func TestConcurrent3A(t *testing.T) {
+	t.Skip()
 	// Test: many clients (3A) ...
 	GenericTest(t, "3A", 5, false, false, false, -1)
 }
 
 func TestUnreliable3A(t *testing.T) {
+	t.Skip()
 	// Test: unreliable net, many clients (3A) ...
 	GenericTest(t, "3A", 5, true, false, false, -1)
 }
 
 func TestUnreliableOneKey3A(t *testing.T) {
+	t.Skip()
 	const nservers = 3
 	cfg := make_config(t, nservers, true, -1)
 	defer cfg.cleanup()
@@ -496,6 +500,7 @@ func TestUnreliableOneKey3A(t *testing.T) {
 // doesn't go through until the partition heals.  The leader in the original
 // network ends up in the minority partition.
 func TestOnePartition3A(t *testing.T) {
+	t.Skip()
 	const nservers = 5
 	cfg := make_config(t, nservers, false, -1)
 	defer cfg.cleanup()
@@ -571,41 +576,49 @@ func TestOnePartition3A(t *testing.T) {
 }
 
 func TestManyPartitionsOneClient3A(t *testing.T) {
+	t.Skip()
 	// Test: partitions, one client (3A) ...
 	GenericTest(t, "3A", 1, false, false, true, -1)
 }
 
 func TestManyPartitionsManyClients3A(t *testing.T) {
+	t.Skip()
 	// Test: partitions, many clients (3A) ...
 	GenericTest(t, "3A", 5, false, false, true, -1)
 }
 
 func TestPersistOneClient3A(t *testing.T) {
+	t.Skip()
 	// Test: restarts, one client (3A) ...
 	GenericTest(t, "3A", 1, false, true, false, -1)
 }
 
 func TestPersistConcurrent3A(t *testing.T) {
+	t.Skip()
 	// Test: restarts, many clients (3A) ...
 	GenericTest(t, "3A", 5, false, true, false, -1)
 }
 
 func TestPersistConcurrentUnreliable3A(t *testing.T) {
+	t.Skip()
 	// Test: unreliable net, restarts, many clients (3A) ...
 	GenericTest(t, "3A", 5, true, true, false, -1)
 }
 
 func TestPersistPartition3A(t *testing.T) {
+	t.Skip()
 	// Test: restarts, partitions, many clients (3A) ...
 	GenericTest(t, "3A", 5, false, true, true, -1)
 }
 
 func TestPersistPartitionUnreliable3A(t *testing.T) {
+	t.Skip()
 	// Test: unreliable net, restarts, partitions, many clients (3A) ...
 	GenericTest(t, "3A", 5, true, true, true, -1)
 }
 
 func TestPersistPartitionUnreliableLinearizable3A(t *testing.T) {
+	t.Skip()
 	// Test: unreliable net, restarts, partitions, linearizability checks (3A) ...
 	GenericTestLinearizability(t, "3A", 15, 7, true, true, true, -1)
 }
@@ -617,6 +630,7 @@ func TestPersistPartitionUnreliableLinearizable3A(t *testing.T) {
 // even if minority doesn't respond.
 //
 func TestSnapshotRPC3B(t *testing.T) {
+	// t.Skip()
 	const nservers = 3
 	maxraftstate := 1000
 	cfg := make_config(t, nservers, false, maxraftstate)
@@ -632,14 +646,17 @@ func TestSnapshotRPC3B(t *testing.T) {
 	// a bunch of puts into the majority partition.
 	cfg.partition([]int{0, 1}, []int{2})
 	{
+		fmt.Printf("[Test] Partitioning {0,1} and {2}\n")
 		ck1 := cfg.makeClient([]int{0, 1})
 		for i := 0; i < 50; i++ {
+			fmt.Printf("[Test] Put <%v> in majority\n", i)
 			Put(cfg, ck1, strconv.Itoa(i), strconv.Itoa(i))
 		}
 		time.Sleep(electionTimeout)
 		Put(cfg, ck1, "b", "B")
 	}
 
+	fmt.Printf("[Test] Puts in majority done\n")
 	// check that the majority partition has thrown away
 	// most of its log entries.
 	sz := cfg.LogSize()
@@ -674,6 +691,7 @@ func TestSnapshotRPC3B(t *testing.T) {
 // are the snapshots not too huge? 500 bytes is a generous bound for the
 // operations we're doing here.
 func TestSnapshotSize3B(t *testing.T) {
+	// t.Skip()
 	const nservers = 3
 	maxraftstate := 1000
 	maxsnapshotstate := 500
@@ -707,31 +725,37 @@ func TestSnapshotSize3B(t *testing.T) {
 }
 
 func TestSnapshotRecover3B(t *testing.T) {
+	// t.Skip()
 	// Test: restarts, snapshots, one client (3B) ...
 	GenericTest(t, "3B", 1, false, true, false, 1000)
 }
 
 func TestSnapshotRecoverManyClients3B(t *testing.T) {
+	// t.Skip()
 	// Test: restarts, snapshots, many clients (3B) ...
 	GenericTest(t, "3B", 20, false, true, false, 1000)
 }
 
 func TestSnapshotUnreliable3B(t *testing.T) {
+	// t.Skip()
 	// Test: unreliable net, snapshots, many clients (3B) ...
 	GenericTest(t, "3B", 5, true, false, false, 1000)
 }
 
 func TestSnapshotUnreliableRecover3B(t *testing.T) {
+	// t.Skip()
 	// Test: unreliable net, restarts, snapshots, many clients (3B) ...
 	GenericTest(t, "3B", 5, true, true, false, 1000)
 }
 
 func TestSnapshotUnreliableRecoverConcurrentPartition3B(t *testing.T) {
+	// t.Skip()
 	// Test: unreliable net, restarts, partitions, snapshots, many clients (3B) ...
 	GenericTest(t, "3B", 5, true, true, true, 1000)
 }
 
 func TestSnapshotUnreliableRecoverConcurrentPartitionLinearizable3B(t *testing.T) {
+	// t.Skip()
 	// Test: unreliable net, restarts, partitions, snapshots, linearizability checks (3B) ...
 	GenericTestLinearizability(t, "3B", 15, 7, true, true, true, 1000)
 }

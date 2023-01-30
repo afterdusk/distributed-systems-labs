@@ -1,0 +1,680 @@
+go test -race
+Test (2A): initial election ...
+  ... Passed --   3.1  3   56   14090    0
+Test (2A): election after network failure ...
+  ... Passed --   4.7  3  188   34525    0
+Test (2A): multiple elections ...
+  ... Passed --   6.9  7  756  136631    0
+Test (2B): basic agreement ...
+  ... Passed --   0.7  3   16    4044    3
+Test (2B): RPC byte count ...
+  ... Passed --   1.5  3   48  112788   11
+Test (2B): agreement despite follower disconnection ...
+  ... Passed --   5.6  3  258   61134    8
+Test (2B): no agreement if too many followers disconnect ...
+  ... Passed --   3.6  5  498   97819    4
+Test (2B): concurrent Start()s ...
+  ... Passed --   0.7  3   12    3048    6
+Test (2B): rejoin of partitioned leader ...
+  ... Passed --   6.8  3  444   91729    4
+Test (2B): leader backs up quickly over incorrect follower logs ...
+  ... Passed --  16.7  5 4659 4217227  102
+Test (2B): RPC counts aren't too high ...
+  ... Passed --   2.2  3   42   11030   12
+Test (2C): basic persistence ...
+  ... Passed --   4.1  3   92   21158    6
+Test (2C): more persistence ...
+  ... Passed --  18.3  5 1886  371754   17
+Test (2C): partitioned leader and one follower crash, leader restarts ...
+  ... Passed --   2.0  3   39    8858    4
+Test (2C): Figure 8 ...
+  ... Passed --  27.4  5  738  138918   22
+Test (2C): unreliable agreement ...
+  ... Passed --   3.3  5  451  133206  246
+Test (2C): Figure 8 (unreliable) ...
+  ... Passed --  39.9  5 15893 21792112  276
+Test (2C): churn ...
+  ... Passed --  16.5  5 3316 3342160  686
+Test (2C): unreliable churn ...
+  ... Passed --  16.5  5 3238 2101788  282
+Test (2D): snapshots basic ...
+[Test] One entry replicated (leader is 1)
+[0][Test] 11 entries sent to leader 1
+[1][Test] 11 entries sent to leader 2
+[2][Test] 11 entries sent to leader 1
+[3][Test] 11 entries sent to leader 1
+[4][Test] 11 entries sent to leader 2
+[5][Test] 11 entries sent to leader 1
+[6][Test] 11 entries sent to leader 1
+[7][Test] 11 entries sent to leader 2
+[8][Test] 11 entries sent to leader 1
+[9][Test] 11 entries sent to leader 1
+[10][Test] 11 entries sent to leader 2
+[11][Test] 11 entries sent to leader 1
+[12][Test] 11 entries sent to leader 1
+[13][Test] 11 entries sent to leader 2
+[14][Test] 11 entries sent to leader 1
+[15][Test] 11 entries sent to leader 1
+[16][Test] 11 entries sent to leader 2
+[17][Test] 11 entries sent to leader 1
+[18][Test] 11 entries sent to leader 1
+[19][Test] 11 entries sent to leader 2
+[20][Test] 11 entries sent to leader 1
+[21][Test] 11 entries sent to leader 1
+[22][Test] 11 entries sent to leader 2
+[23][Test] 11 entries sent to leader 1
+[24][Test] 11 entries sent to leader 1
+[25][Test] 11 entries sent to leader 2
+[26][Test] 11 entries sent to leader 1
+[27][Test] 11 entries sent to leader 1
+[28][Test] 11 entries sent to leader 2
+[29][Test] 11 entries sent to leader 1
+  ... Passed --   4.0  3  140   46840  251
+Test (2D): install snapshots (disconnect) ...
+[Test] One entry replicated (leader is 1)
+[0][Test] Disconnecting victim 2
+[0][Test] Entry replicated after disconnecting 2
+[0][Test] 11 entries sent to leader 1
+[0][Test] Connecting victim 2
+[0][Test] Entry replicated after connecting 2
+[1][Test] Disconnecting victim 1
+[1][Test] Entry replicated after disconnecting 1
+[1][Test] 11 entries sent to leader 2
+[1][Test] Connecting victim 1
+[1][Test] Entry replicated after connecting 1
+[2][Test] Disconnecting victim 0
+[2][Test] Entry replicated after disconnecting 0
+[2][Test] 11 entries sent to leader 2
+[2][Test] Connecting victim 0
+[2][Test] Entry replicated after connecting 0
+[3][Test] Disconnecting victim 0
+[3][Test] Entry replicated after disconnecting 0
+[3][Test] 11 entries sent to leader 2
+[3][Test] Connecting victim 0
+[3][Test] Entry replicated after connecting 0
+[4][Test] Disconnecting victim 2
+[4][Test] Entry replicated after disconnecting 2
+[4][Test] 11 entries sent to leader 0
+[4][Test] Connecting victim 2
+[4][Test] Entry replicated after connecting 2
+[5][Test] Disconnecting victim 2
+[5][Test] Entry replicated after disconnecting 2
+[5][Test] 11 entries sent to leader 1
+[5][Test] Connecting victim 2
+[5][Test] Entry replicated after connecting 2
+[6][Test] Disconnecting victim 2
+[6][Test] Entry replicated after disconnecting 2
+[6][Test] 11 entries sent to leader 1
+[6][Test] Connecting victim 2
+[6][Test] Entry replicated after connecting 2
+[7][Test] Disconnecting victim 1
+[7][Test] Entry replicated after disconnecting 1
+[7][Test] 11 entries sent to leader 2
+[7][Test] Connecting victim 1
+[7][Test] Entry replicated after connecting 1
+[8][Test] Disconnecting victim 0
+[8][Test] Entry replicated after disconnecting 0
+[8][Test] 11 entries sent to leader 2
+[8][Test] Connecting victim 0
+[8][Test] Entry replicated after connecting 0
+[9][Test] Disconnecting victim 0
+[9][Test] Entry replicated after disconnecting 0
+[9][Test] 11 entries sent to leader 2
+[9][Test] Connecting victim 0
+[9][Test] Entry replicated after connecting 0
+[10][Test] Disconnecting victim 2
+[10][Test] Entry replicated after disconnecting 2
+[10][Test] 11 entries sent to leader 0
+[10][Test] Connecting victim 2
+[10][Test] Entry replicated after connecting 2
+[11][Test] Disconnecting victim 1
+[11][Test] Entry replicated after disconnecting 1
+[11][Test] 11 entries sent to leader 0
+[11][Test] Connecting victim 1
+[11][Test] Entry replicated after connecting 1
+[12][Test] Disconnecting victim 1
+[12][Test] Entry replicated after disconnecting 1
+[12][Test] 11 entries sent to leader 0
+[12][Test] Connecting victim 1
+[12][Test] Entry replicated after connecting 1
+[13][Test] Disconnecting victim 0
+[13][Test] Entry replicated after disconnecting 0
+[13][Test] 11 entries sent to leader 1
+[13][Test] Connecting victim 0
+[13][Test] Entry replicated after connecting 0
+[14][Test] Disconnecting victim 0
+[14][Test] Entry replicated after disconnecting 0
+[14][Test] 11 entries sent to leader 2
+[14][Test] Connecting victim 0
+[14][Test] Entry replicated after connecting 0
+[15][Test] Disconnecting victim 0
+[15][Test] Entry replicated after disconnecting 0
+[15][Test] 11 entries sent to leader 2
+[15][Test] Connecting victim 0
+[15][Test] Entry replicated after connecting 0
+[16][Test] Disconnecting victim 2
+[16][Test] Entry replicated after disconnecting 2
+[16][Test] 11 entries sent to leader 0
+[16][Test] Connecting victim 2
+[16][Test] Entry replicated after connecting 2
+[17][Test] Disconnecting victim 1
+[17][Test] Entry replicated after disconnecting 1
+[17][Test] 11 entries sent to leader 0
+[17][Test] Connecting victim 1
+[17][Test] Entry replicated after connecting 1
+[18][Test] Disconnecting victim 1
+[18][Test] Entry replicated after disconnecting 1
+[18][Test] 11 entries sent to leader 0
+[18][Test] Connecting victim 1
+[18][Test] Entry replicated after connecting 1
+[19][Test] Disconnecting victim 0
+[19][Test] Entry replicated after disconnecting 0
+[19][Test] 11 entries sent to leader 1
+[19][Test] Connecting victim 0
+[19][Test] Entry replicated after connecting 0
+[20][Test] Disconnecting victim 2
+[20][Test] Entry replicated after disconnecting 2
+[20][Test] 11 entries sent to leader 1
+[20][Test] Connecting victim 2
+[20][Test] Entry replicated after connecting 2
+[21][Test] Disconnecting victim 2
+[21][Test] Entry replicated after disconnecting 2
+[21][Test] 11 entries sent to leader 1
+[21][Test] Connecting victim 2
+[21][Test] Entry replicated after connecting 2
+[22][Test] Disconnecting victim 1
+[22][Test] Entry replicated after disconnecting 1
+[22][Test] 11 entries sent to leader 2
+[22][Test] Connecting victim 1
+[22][Test] Entry replicated after connecting 1
+[23][Test] Disconnecting victim 1
+[23][Test] Entry replicated after disconnecting 1
+[23][Test] 11 entries sent to leader 0
+[23][Test] Connecting victim 1
+[23][Test] Entry replicated after connecting 1
+[24][Test] Disconnecting victim 1
+[24][Test] Entry replicated after disconnecting 1
+[24][Test] 11 entries sent to leader 0
+[24][Test] Connecting victim 1
+[24][Test] Entry replicated after connecting 1
+[25][Test] Disconnecting victim 0
+[25][Test] Entry replicated after disconnecting 0
+[25][Test] 11 entries sent to leader 1
+[25][Test] Connecting victim 0
+[25][Test] Entry replicated after connecting 0
+[26][Test] Disconnecting victim 2
+[26][Test] Entry replicated after disconnecting 2
+[26][Test] 11 entries sent to leader 1
+[26][Test] Connecting victim 2
+[26][Test] Entry replicated after connecting 2
+[27][Test] Disconnecting victim 2
+[27][Test] Entry replicated after disconnecting 2
+[27][Test] 11 entries sent to leader 1
+[27][Test] Connecting victim 2
+[27][Test] Entry replicated after connecting 2
+[28][Test] Disconnecting victim 1
+[28][Test] Entry replicated after disconnecting 1
+[28][Test] 11 entries sent to leader 2
+[28][Test] Connecting victim 1
+[28][Test] Entry replicated after connecting 1
+[29][Test] Disconnecting victim 1
+[29][Test] Entry replicated after disconnecting 1
+[29][Test] 11 entries sent to leader 0
+[29][Test] Connecting victim 1
+[29][Test] Entry replicated after connecting 1
+  ... Passed --  41.7  3 1348  347261  377
+Test (2D): install snapshots (disconnect+unreliable) ...
+[Test] One entry replicated (leader is 2)
+[0][Test] Disconnecting victim 0
+[0][Test] Entry replicated after disconnecting 0
+[0][Test] 11 entries sent to leader 2
+[0][Test] Connecting victim 0
+[0][Test] Entry replicated after connecting 0
+[1][Test] Disconnecting victim 2
+[1][Test] Entry replicated after disconnecting 2
+[1][Test] 11 entries sent to leader 0
+[1][Test] Connecting victim 2
+[1][Test] Entry replicated after connecting 2
+[2][Test] Disconnecting victim 1
+[2][Test] Entry replicated after disconnecting 1
+[2][Test] 11 entries sent to leader 0
+[2][Test] Connecting victim 1
+[2][Test] Entry replicated after connecting 1
+[3][Test] Disconnecting victim 1
+[3][Test] Entry replicated after disconnecting 1
+[3][Test] 11 entries sent to leader 0
+[3][Test] Connecting victim 1
+[3][Test] Entry replicated after connecting 1
+[4][Test] Disconnecting victim 0
+[4][Test] Entry replicated after disconnecting 0
+[4][Test] 11 entries sent to leader 1
+[4][Test] Connecting victim 0
+[4][Test] Entry replicated after connecting 0
+[5][Test] Disconnecting victim 0
+[5][Test] Entry replicated after disconnecting 0
+[5][Test] 11 entries sent to leader 2
+[5][Test] Connecting victim 0
+[5][Test] Entry replicated after connecting 0
+[6][Test] Disconnecting victim 0
+[6][Test] Entry replicated after disconnecting 0
+[6][Test] 11 entries sent to leader 2
+[6][Test] Connecting victim 0
+[6][Test] Entry replicated after connecting 0
+[7][Test] Disconnecting victim 2
+[7][Test] Entry replicated after disconnecting 2
+[7][Test] 11 entries sent to leader 0
+[7][Test] Connecting victim 2
+[7][Test] Entry replicated after connecting 2
+[8][Test] Disconnecting victim 1
+[8][Test] Entry replicated after disconnecting 1
+[8][Test] 11 entries sent to leader 0
+[8][Test] Connecting victim 1
+[8][Test] Entry replicated after connecting 1
+[9][Test] Disconnecting victim 1
+[9][Test] Entry replicated after disconnecting 1
+[9][Test] 11 entries sent to leader 0
+[9][Test] Connecting victim 1
+[9][Test] Entry replicated after connecting 1
+[10][Test] Disconnecting victim 0
+[10][Test] Entry replicated after disconnecting 0
+[10][Test] 11 entries sent to leader 1
+[10][Test] Connecting victim 0
+[10][Test] Entry replicated after connecting 0
+[11][Test] Disconnecting victim 0
+[11][Test] Entry replicated after disconnecting 0
+[11][Test] 11 entries sent to leader 2
+[11][Test] Connecting victim 0
+[11][Test] Entry replicated after connecting 0
+[12][Test] Disconnecting victim 0
+[12][Test] Entry replicated after disconnecting 0
+[12][Test] 11 entries sent to leader 2
+[12][Test] Connecting victim 0
+[12][Test] Entry replicated after connecting 0
+[13][Test] Disconnecting victim 2
+[13][Test] Entry replicated after disconnecting 2
+[13][Test] 11 entries sent to leader 0
+[13][Test] Connecting victim 2
+[13][Test] Entry replicated after connecting 2
+[14][Test] Disconnecting victim 1
+[14][Test] Entry replicated after disconnecting 1
+[14][Test] 11 entries sent to leader 0
+[14][Test] Connecting victim 1
+[14][Test] Entry replicated after connecting 1
+[15][Test] Disconnecting victim 1
+[15][Test] Entry replicated after disconnecting 1
+[15][Test] 11 entries sent to leader 0
+[15][Test] Connecting victim 1
+[15][Test] Entry replicated after connecting 1
+[16][Test] Disconnecting victim 0
+[16][Test] Entry replicated after disconnecting 0
+[16][Test] 11 entries sent to leader 1
+[16][Test] Connecting victim 0
+[16][Test] Entry replicated after connecting 0
+[17][Test] Disconnecting victim 2
+[17][Test] Entry replicated after disconnecting 2
+[17][Test] 11 entries sent to leader 1
+[17][Test] Connecting victim 2
+[17][Test] Entry replicated after connecting 2
+[18][Test] Disconnecting victim 2
+[18][Test] Entry replicated after disconnecting 2
+[18][Test] 11 entries sent to leader 1
+[18][Test] Connecting victim 2
+[18][Test] Entry replicated after connecting 2
+[19][Test] Disconnecting victim 1
+[19][Test] Entry replicated after disconnecting 1
+[19][Test] 11 entries sent to leader 2
+[19][Test] Connecting victim 1
+[19][Test] Entry replicated after connecting 1
+[20][Test] Disconnecting victim 0
+[20][Test] Entry replicated after disconnecting 0
+[20][Test] 11 entries sent to leader 2
+[20][Test] Connecting victim 0
+[20][Test] Entry replicated after connecting 0
+[21][Test] Disconnecting victim 0
+[21][Test] Entry replicated after disconnecting 0
+[21][Test] 11 entries sent to leader 2
+[21][Test] Connecting victim 0
+[21][Test] Entry replicated after connecting 0
+[22][Test] Disconnecting victim 2
+[22][Test] Entry replicated after disconnecting 2
+[22][Test] 11 entries sent to leader 0
+[22][Test] Connecting victim 2
+[22][Test] Entry replicated after connecting 2
+[23][Test] Disconnecting victim 2
+[23][Test] Entry replicated after disconnecting 2
+[23][Test] 11 entries sent to leader 1
+[23][Test] Connecting victim 2
+[23][Test] Entry replicated after connecting 2
+[24][Test] Disconnecting victim 2
+[24][Test] Entry replicated after disconnecting 2
+[24][Test] 11 entries sent to leader 1
+[24][Test] Connecting victim 2
+[24][Test] Entry replicated after connecting 2
+[25][Test] Disconnecting victim 1
+[25][Test] Entry replicated after disconnecting 1
+[25][Test] 11 entries sent to leader 2
+[25][Test] Connecting victim 1
+[25][Test] Entry replicated after connecting 1
+[26][Test] Disconnecting victim 1
+[26][Test] Entry replicated after disconnecting 1
+[26][Test] 11 entries sent to leader 0
+[26][Test] Connecting victim 1
+[26][Test] Entry replicated after connecting 1
+[27][Test] Disconnecting victim 1
+[27][Test] Entry replicated after disconnecting 1
+[27][Test] 11 entries sent to leader 0
+[27][Test] Connecting victim 1
+[27][Test] Entry replicated after connecting 1
+[28][Test] Disconnecting victim 0
+[28][Test] Entry replicated after disconnecting 0
+[28][Test] 11 entries sent to leader 1
+[28][Test] Connecting victim 0
+[28][Test] Entry replicated after connecting 0
+[29][Test] Disconnecting victim 2
+[29][Test] Entry replicated after disconnecting 2
+[29][Test] 11 entries sent to leader 1
+[29][Test] Connecting victim 2
+[29][Test] Entry replicated after connecting 2
+  ... Passed --  46.0  3 1740  432183  378
+Test (2D): install snapshots (crash) ...
+[Test] One entry replicated (leader is 0)
+[0][Test] Crashing victim 1
+[0][Test] Entry replicated after crash
+[0][Test] 11 entries sent to leader 0
+[0][Test] Uncrashing victim 1
+[0][Test] Entry replicated after uncrashing 1
+[1][Test] Crashing victim 0
+[1][Test] Entry replicated after crash
+[1][Test] 11 entries sent to leader 1
+[1][Test] Uncrashing victim 0
+[1][Test] Entry replicated after uncrashing 0
+[2][Test] Crashing victim 2
+[2][Test] Entry replicated after crash
+[2][Test] 11 entries sent to leader 1
+[2][Test] Uncrashing victim 2
+[2][Test] Entry replicated after uncrashing 2
+[3][Test] Crashing victim 2
+[3][Test] Entry replicated after crash
+[3][Test] 11 entries sent to leader 1
+[3][Test] Uncrashing victim 2
+[3][Test] Entry replicated after uncrashing 2
+[4][Test] Crashing victim 1
+[4][Test] Entry replicated after crash
+[4][Test] 11 entries sent to leader 2
+[4][Test] Uncrashing victim 1
+[4][Test] Entry replicated after uncrashing 1
+[5][Test] Crashing victim 1
+[5][Test] Entry replicated after crash
+[5][Test] 11 entries sent to leader 0
+[5][Test] Uncrashing victim 1
+[5][Test] Entry replicated after uncrashing 1
+[6][Test] Crashing victim 1
+[6][Test] Entry replicated after crash
+[6][Test] 11 entries sent to leader 0
+[6][Test] Uncrashing victim 1
+[6][Test] Entry replicated after uncrashing 1
+[7][Test] Crashing victim 0
+[7][Test] Entry replicated after crash
+[7][Test] 11 entries sent to leader 1
+[7][Test] Uncrashing victim 0
+[7][Test] Entry replicated after uncrashing 0
+[8][Test] Crashing victim 2
+[8][Test] Entry replicated after crash
+[8][Test] 11 entries sent to leader 1
+[8][Test] Uncrashing victim 2
+[8][Test] Entry replicated after uncrashing 2
+[9][Test] Crashing victim 2
+[9][Test] Entry replicated after crash
+[9][Test] 11 entries sent to leader 1
+[9][Test] Uncrashing victim 2
+[9][Test] Entry replicated after uncrashing 2
+[10][Test] Crashing victim 1
+[10][Test] Entry replicated after crash
+[10][Test] 11 entries sent to leader 2
+[10][Test] Uncrashing victim 1
+[10][Test] Entry replicated after uncrashing 1
+[11][Test] Crashing victim 0
+[11][Test] Entry replicated after crash
+[11][Test] 11 entries sent to leader 2
+[11][Test] Uncrashing victim 0
+[11][Test] Entry replicated after uncrashing 0
+[12][Test] Crashing victim 0
+[12][Test] Entry replicated after crash
+[12][Test] 11 entries sent to leader 2
+[12][Test] Uncrashing victim 0
+[12][Test] Entry replicated after uncrashing 0
+[13][Test] Crashing victim 2
+[13][Test] Entry replicated after crash
+[13][Test] 11 entries sent to leader 0
+[13][Test] Uncrashing victim 2
+[13][Test] Entry replicated after uncrashing 2
+[14][Test] Crashing victim 1
+[14][Test] Entry replicated after crash
+[14][Test] 11 entries sent to leader 0
+[14][Test] Uncrashing victim 1
+[14][Test] Entry replicated after uncrashing 1
+[15][Test] Crashing victim 1
+[15][Test] Entry replicated after crash
+[15][Test] 11 entries sent to leader 0
+[15][Test] Uncrashing victim 1
+[15][Test] Entry replicated after uncrashing 1
+[16][Test] Crashing victim 0
+[16][Test] Entry replicated after crash
+[16][Test] 11 entries sent to leader 1
+[16][Test] Uncrashing victim 0
+[16][Test] Entry replicated after uncrashing 0
+[17][Test] Crashing victim 0
+[17][Test] Entry replicated after crash
+[17][Test] 11 entries sent to leader 2
+[17][Test] Uncrashing victim 0
+[17][Test] Entry replicated after uncrashing 0
+[18][Test] Crashing victim 0
+[18][Test] Entry replicated after crash
+[18][Test] 11 entries sent to leader 2
+[18][Test] Uncrashing victim 0
+[18][Test] Entry replicated after uncrashing 0
+[19][Test] Crashing victim 2
+[19][Test] Entry replicated after crash
+[19][Test] 11 entries sent to leader 0
+[19][Test] Uncrashing victim 2
+[19][Test] Entry replicated after uncrashing 2
+[20][Test] Crashing victim 1
+[20][Test] Entry replicated after crash
+[20][Test] 11 entries sent to leader 0
+[20][Test] Uncrashing victim 1
+[20][Test] Entry replicated after uncrashing 1
+[21][Test] Crashing victim 1
+[21][Test] Entry replicated after crash
+[21][Test] 11 entries sent to leader 0
+[21][Test] Uncrashing victim 1
+[21][Test] Entry replicated after uncrashing 1
+[22][Test] Crashing victim 0
+[22][Test] Entry replicated after crash
+[22][Test] 11 entries sent to leader 1
+[22][Test] Uncrashing victim 0
+[22][Test] Entry replicated after uncrashing 0
+[23][Test] Crashing victim 2
+[23][Test] Entry replicated after crash
+[23][Test] 11 entries sent to leader 1
+[23][Test] Uncrashing victim 2
+[23][Test] Entry replicated after uncrashing 2
+[24][Test] Crashing victim 2
+[24][Test] Entry replicated after crash
+[24][Test] 11 entries sent to leader 1
+[24][Test] Uncrashing victim 2
+[24][Test] Entry replicated after uncrashing 2
+[25][Test] Crashing victim 1
+[25][Test] Entry replicated after crash
+[25][Test] 11 entries sent to leader 2
+[25][Test] Uncrashing victim 1
+[25][Test] Entry replicated after uncrashing 1
+[26][Test] Crashing victim 1
+[26][Test] Entry replicated after crash
+[26][Test] 11 entries sent to leader 0
+[26][Test] Uncrashing victim 1
+[26][Test] Entry replicated after uncrashing 1
+[27][Test] Crashing victim 1
+[27][Test] Entry replicated after crash
+[27][Test] 11 entries sent to leader 0
+[27][Test] Uncrashing victim 1
+[27][Test] Entry replicated after uncrashing 1
+[28][Test] Crashing victim 0
+[28][Test] Entry replicated after crash
+[28][Test] 11 entries sent to leader 1
+[28][Test] Uncrashing victim 0
+[28][Test] Entry replicated after uncrashing 0
+[29][Test] Crashing victim 2
+[29][Test] Entry replicated after crash
+[29][Test] 11 entries sent to leader 1
+[29][Test] Uncrashing victim 2
+[29][Test] Entry replicated after uncrashing 2
+  ... Passed --  30.3  3  968  259924  388
+Test (2D): install snapshots (unreliable+crash) ...
+[Test] One entry replicated (leader is 0)
+[0][Test] Crashing victim 1
+[0][Test] Entry replicated after crash
+[0][Test] 11 entries sent to leader 0
+[0][Test] Uncrashing victim 1
+[0][Test] Entry replicated after uncrashing 1
+[1][Test] Crashing victim 0
+[1][Test] Entry replicated after crash
+[1][Test] 11 entries sent to leader 1
+[1][Test] Uncrashing victim 0
+[1][Test] Entry replicated after uncrashing 0
+[2][Test] Crashing victim 0
+[2][Test] Entry replicated after crash
+[2][Test] 11 entries sent to leader 2
+[2][Test] Uncrashing victim 0
+[2][Test] Entry replicated after uncrashing 0
+[3][Test] Crashing victim 0
+[3][Test] Entry replicated after crash
+[3][Test] 11 entries sent to leader 2
+[3][Test] Uncrashing victim 0
+[3][Test] Entry replicated after uncrashing 0
+[4][Test] Crashing victim 2
+[4][Test] Entry replicated after crash
+[4][Test] 11 entries sent to leader 0
+[4][Test] Uncrashing victim 2
+[4][Test] Entry replicated after uncrashing 2
+[5][Test] Crashing victim 1
+[5][Test] Entry replicated after crash
+[5][Test] 11 entries sent to leader 0
+[5][Test] Uncrashing victim 1
+[5][Test] Entry replicated after uncrashing 1
+[6][Test] Crashing victim 1
+[6][Test] Entry replicated after crash
+[6][Test] 11 entries sent to leader 0
+[6][Test] Uncrashing victim 1
+[6][Test] Entry replicated after uncrashing 1
+[7][Test] Crashing victim 0
+[7][Test] Entry replicated after crash
+[7][Test] 11 entries sent to leader 1
+[7][Test] Uncrashing victim 0
+[7][Test] Entry replicated after uncrashing 0
+[8][Test] Crashing victim 0
+[8][Test] Entry replicated after crash
+[8][Test] 11 entries sent to leader 2
+[8][Test] Uncrashing victim 0
+[8][Test] Entry replicated after uncrashing 0
+[9][Test] Crashing victim 0
+[9][Test] Entry replicated after crash
+[9][Test] 11 entries sent to leader 2
+[9][Test] Uncrashing victim 0
+[9][Test] Entry replicated after uncrashing 0
+[10][Test] Crashing victim 2
+[10][Test] Entry replicated after crash
+[10][Test] 11 entries sent to leader 0
+[10][Test] Uncrashing victim 2
+[10][Test] Entry replicated after uncrashing 2
+[11][Test] Crashing victim 1
+[11][Test] Entry replicated after crash
+[11][Test] 11 entries sent to leader 0
+[11][Test] Uncrashing victim 1
+[11][Test] Entry replicated after uncrashing 1
+[12][Test] Crashing victim 1
+[12][Test] Entry replicated after crash
+[12][Test] 11 entries sent to leader 0
+[12][Test] Uncrashing victim 1
+[12][Test] Entry replicated after uncrashing 1
+[13][Test] Crashing victim 0
+[13][Test] Entry replicated after crash
+[13][Test] 11 entries sent to leader 1
+[13][Test] Uncrashing victim 0
+[13][Test] Entry replicated after uncrashing 0
+[14][Test] Crashing victim 2
+[14][Test] Entry replicated after crash
+[14][Test] 11 entries sent to leader 1
+[14][Test] Uncrashing victim 2
+[14][Test] Entry replicated after uncrashing 2
+[15][Test] Crashing victim 2
+[15][Test] Entry replicated after crash
+[15][Test] 11 entries sent to leader 1
+[15][Test] Uncrashing victim 2
+[15][Test] Entry replicated after uncrashing 2
+[16][Test] Crashing victim 1
+[16][Test] Entry replicated after crash
+[16][Test] 11 entries sent to leader 2
+[16][Test] Uncrashing victim 1
+[16][Test] Entry replicated after uncrashing 1
+[17][Test] Crashing victim 0
+[17][Test] Entry replicated after crash
+[17][Test] 11 entries sent to leader 2
+[17][Test] Uncrashing victim 0
+[17][Test] Entry replicated after uncrashing 0
+[18][Test] Crashing victim 0
+[18][Test] Entry replicated after crash
+[18][Test] 11 entries sent to leader 2
+[18][Test] Uncrashing victim 0
+[18][Test] Entry replicated after uncrashing 0
+[19][Test] Crashing victim 2
+[19][Test] Entry replicated after crash
+[19][Test] 11 entries sent to leader 0
+[19][Test] Uncrashing victim 2
+[19][Test] Entry replicated after uncrashing 2
+[20][Test] Crashing victim 1
+[20][Test] Entry replicated after crash
+[20][Test] 11 entries sent to leader 0
+[20][Test] Uncrashing victim 1
+[20][Test] Entry replicated after uncrashing 1
+[21][Test] Crashing victim 1
+[21][Test] Entry replicated after crash
+[21][Test] 11 entries sent to leader 0
+[21][Test] Uncrashing victim 1
+[21][Test] Entry replicated after uncrashing 1
+[22][Test] Crashing victim 0
+[22][Test] Entry replicated after crash
+[22][Test] 11 entries sent to leader 1
+[22][Test] Uncrashing victim 0
+[22][Test] Entry replicated after uncrashing 0
+[23][Test] Crashing victim 0
+[23][Test] Entry replicated after crash
+[23][Test] 11 entries sent to leader 2
+[23][Test] Uncrashing victim 0
+[23][Test] Entry replicated after uncrashing 0
+[24][Test] Crashing victim 0
+[24][Test] Entry replicated after crash
+[24][Test] 11 entries sent to leader 2
+[24][Test] Uncrashing victim 0
+[24][Test] Entry replicated after uncrashing 0
+[25][Test] Crashing victim 2
+[25][Test] Entry replicated after crash
+[25][Test] 11 entries sent to leader 0
+[25][Test] Uncrashing victim 2
+[25][Test] Entry replicated after uncrashing 2
+[26][Test] Crashing victim 1
+[26][Test] Entry replicated after crash
+[26][Test] 11 entries sent to leader 0
+[26][Test] Uncrashing victim 1
+[26][Test] Entry replicated after uncrashing 1
+[27][Test] Crashing victim 1
+[27][Test] Entry replicated after crash
+[27][Test] 11 entries sent to leader 0
+[27][Test] Uncrashing victim 1
+[27][Test] Entry replicated after uncrashing 1
+[28][Test] Crashing victim 0
+[28][Test] Entry replicated after crash
+[28][Test] 11 entries sent to leader 1
+[28][Test] Uncrashing victim 0
+signal: interrupt
+FAIL	_/home/evan/Projects/6.824/src/raft	334.767s
+Makefile:40: recipe for target 'race' failed

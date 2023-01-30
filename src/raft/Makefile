@@ -21,6 +21,12 @@ test-2c:
 test-2c-untilfail:
 	while make test-2c; do :; done
 
+test-2d:
+	go test -run 2D
+
+test-2d-untilfail:
+	while make test-2d; do :; done
+
 time:
 	time go test
 

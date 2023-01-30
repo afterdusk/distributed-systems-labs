@@ -1,0 +1,59 @@
+go test -run 3B
+Test: InstallSnapshot RPC (3B) ...
+[Test] Partitioning {0,1} and {2}
+[Test] Put <0> in majority
+[Test] Put <1> in majority
+[Test] Put <2> in majority
+[Test] Put <3> in majority
+[Test] Put <4> in majority
+[Test] Put <5> in majority
+[Test] Put <6> in majority
+[Test] Put <7> in majority
+[Test] Put <8> in majority
+[Test] Put <9> in majority
+[Test] Put <10> in majority
+[Test] Put <11> in majority
+[Test] Put <12> in majority
+[Test] Put <13> in majority
+[Test] Put <14> in majority
+[Test] Put <15> in majority
+[Test] Put <16> in majority
+[Test] Put <17> in majority
+[Test] Put <18> in majority
+[Test] Put <19> in majority
+[Test] Put <20> in majority
+[Test] Put <21> in majority
+[Test] Put <22> in majority
+[Test] Put <23> in majority
+[Test] Put <24> in majority
+[Test] Put <25> in majority
+[Test] Put <26> in majority
+[Test] Put <27> in majority
+[Test] Put <28> in majority
+[Test] Put <29> in majority
+[Test] Put <30> in majority
+[Test] Put <31> in majority
+[Test] Put <32> in majority
+[Test] Put <33> in majority
+[Test] Put <34> in majority
+[Test] Put <35> in majority
+[Test] Put <36> in majority
+[Test] Put <37> in majority
+[Test] Put <38> in majority
+[Test] Put <39> in majority
+[Test] Put <40> in majority
+[Test] Put <41> in majority
+[Test] Put <42> in majority
+[Test] Put <43> in majority
+[Test] Put <44> in majority
+[Test] Put <45> in majority
+[Test] Put <46> in majority
+[Test] Put <47> in majority
+[Test] Put <48> in majority
+[Test] Put <49> in majority
+[Test] Puts in majority done
+  ... Passed --   4.0  3  6591   63
+Test: snapshot size is reasonable (3B) ...
+signal: interrupt
+FAIL	_/home/evan/Projects/6.824/src/kvraft	32.183s
+Makefile:13: recipe for target 'test-3b' failed

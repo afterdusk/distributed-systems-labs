@@ -1,0 +1,86 @@
+go test -run 2D
+Test (2D): install snapshots (crash) ...
+[Test] One entry replicated (leader is 2)
+[0][Test] Crashing victim 0
+[0][Test] Entry replicated after crash
+[0][Test] 11 entries sent to leader 2
+[0][Test] Uncrashing victim 0
+[0][Test] Entry replicated after uncrashing 0
+[1][Test] Crashing victim 2
+[1][Test] Entry replicated after crash
+[1][Test] 11 entries sent to leader 0
+[1][Test] Uncrashing victim 2
+[1][Test] Entry replicated after uncrashing 2
+[2][Test] Crashing victim 2
+[2][Test] Entry replicated after crash
+[2][Test] 11 entries sent to leader 1
+[2][Test] Uncrashing victim 2
+[2][Test] Entry replicated after uncrashing 2
+[3][Test] Crashing victim 2
+[3][Test] Entry replicated after crash
+[3][Test] 11 entries sent to leader 1
+[3][Test] Uncrashing victim 2
+[3][Test] Entry replicated after uncrashing 2
+[4][Test] Crashing victim 1
+[4][Test] Entry replicated after crash
+[4][Test] 11 entries sent to leader 2
+[4][Test] Uncrashing victim 1
+[4][Test] Entry replicated after uncrashing 1
+[5][Test] Crashing victim 0
+[5][Test] Entry replicated after crash
+[5][Test] 11 entries sent to leader 2
+[5][Test] Uncrashing victim 0
+[5][Test] Entry replicated after uncrashing 0
+[6][Test] Crashing victim 0
+[6][Test] Entry replicated after crash
+[6][Test] 11 entries sent to leader 2
+[6][Test] Uncrashing victim 0
+[6][Test] Entry replicated after uncrashing 0
+[7][Test] Crashing victim 2
+[7][Test] Entry replicated after crash
+[7][Test] 11 entries sent to leader 0
+[7][Test] Uncrashing victim 2
+[7][Test] Entry replicated after uncrashing 2
+[8][Test] Crashing victim 2
+[8][Test] Entry replicated after crash
+[8][Test] 11 entries sent to leader 1
+[8][Test] Uncrashing victim 2
+[8][Test] Entry replicated after uncrashing 2
+[9][Test] Crashing victim 2
+[9][Test] Entry replicated after crash
+[9][Test] 11 entries sent to leader 1
+[9][Test] Uncrashing victim 2
+[9][Test] Entry replicated after uncrashing 2
+[10][Test] Crashing victim 1
+[10][Test] Entry replicated after crash
+[10][Test] 11 entries sent to leader 2
+[10][Test] Uncrashing victim 1
+[10][Test] Entry replicated after uncrashing 1
+[11][Test] Crashing victim 0
+[11][Test] Entry replicated after crash
+[11][Test] 11 entries sent to leader 2
+[11][Test] Uncrashing victim 0
+[11][Test] Entry replicated after uncrashing 0
+[12][Test] Crashing victim 0
+[12][Test] Entry replicated after crash
+[12][Test] 11 entries sent to leader 2
+[12][Test] Uncrashing victim 0
+[12][Test] Entry replicated after uncrashing 0
+[13][Test] Crashing victim 2
+[13][Test] Entry replicated after crash
+[13][Test] 11 entries sent to leader 0
+[13][Test] Uncrashing victim 2
+[13][Test] Entry replicated after uncrashing 2
+[14][Test] Crashing victim 2
+[14][Test] Entry replicated after crash
+[14][Test] 11 entries sent to leader 1
+[14][Test] Uncrashing victim 2
+[14][Test] Entry replicated after uncrashing 2
+[15][Test] Crashing victim 2
+[15][Test] Entry replicated after crash
+[15][Test] 11 entries sent to leader 1
+[15][Test] Uncrashing victim 2
+[15][Test] Entry replicated after uncrashing 2
+signal: interrupt
+FAIL	_/home/evan/Projects/6.824/src/raft	15.759s
+Makefile:25: recipe for target 'test-2d' failed

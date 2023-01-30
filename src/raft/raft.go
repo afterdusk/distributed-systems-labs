@@ -182,12 +182,13 @@ func (rf *Raft) getLastLogIndexAndTerm() (int, int) {
 }
 
 func (rf *Raft) getPrevLogIndexAndTerm(server int) (int, int) {
+	DPrintf("[Raft %v][getPrevLogIndexAndTerm] rf.nextIndex[%v]: %v, rf.lastIncludedIndex: %v, rf.lastIncludedTerm: %v, len(rf.log): %v", rf.Me, server, rf.nextIndex[server], rf.lastIncludedIndex, rf.lastIncludedTerm, len(rf.log))
 	prevLogIndex := rf.nextIndex[server] - 1
 	prevLogTerm := rf.lastIncludedTerm
 	if prevLogIndex > rf.lastIncludedIndex {
 		prevLogTerm = rf.log[prevLogIndex-1-rf.lastIncludedIndex].Term
 	}
-	DPrintf("[Raft %v][getPrevLogIndexAndTerm] prevLogTerm: %v, prevLogIndex: %v, rf.log: %v\n", rf.Me, prevLogTerm, prevLogIndex, rf.log)
+	DPrintf("[Raft %v][getPrevLogIndexAndTerm] prevLogTerm: %v, prevLogIndex: %v", rf.Me, prevLogTerm, prevLogIndex)
 	return prevLogIndex, prevLogTerm
 }
 
@@ -239,7 +240,7 @@ func (rf *Raft) canAppend(term int, logIndex int, logTerm int) (bool, int) {
 		(logIndex == rf.lastIncludedIndex && logTerm == rf.lastIncludedTerm) ||
 		(adjustedIndex >= 0 && adjustedIndex < len(rf.log) && rf.log[adjustedIndex].Term == logTerm)
 
-	DPrintf("[Raft %v][canAppend] validTerm: %v (term: %v, currentTerm: %v), samePrevLog: %v (rf.lastIncludedIndex: %v, logIndex: %v, logTerm:%v, rf.lastIncludedTerm: %v, rf.logTerm: %v, rf.log: %v)\n", rf.Me, validTerm, term, rf.currentTerm, samePrevLog, rf.lastIncludedIndex, logIndex, logTerm, rf.lastIncludedTerm, rf.logTerm, rf.log)
+	DPrintf("[Raft %v][canAppend] validTerm: %v (term: %v, currentTerm: %v)\nsamePrevLog: %v (rf.lastIncludedIndex: %v, logIndex: %v, logTerm:%v, rf.lastIncludedTerm: %v, len(rf.log): %v)\n", rf.Me, validTerm, term, rf.currentTerm, samePrevLog, rf.lastIncludedIndex, logIndex, logTerm, rf.lastIncludedTerm, len(rf.log))
 
 	// success, correct term
 	if validTerm && samePrevLog {
@@ -648,7 +649,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, retry boo
 }
 
 func (rf *Raft) sendInstallSnapshot(server int, args *InstallSnapshotArgs) {
-	DPrintf("[Raft %v][sendInstallSnapshot] target: %v, args: %v\n", rf.Me, server, args)
+	DPrintf("[Raft %v][sendInstallSnapshot] target: %v, args.Term: %v, args.LastIncludedIndex: %v, args.LastIncludedTerm: %v", rf.Me, server, args.Term, args.LastIncludedIndex, args.LastIncludedTerm)
 	reply := &InstallSnapshotReply{}
 	var ok bool
 	if ok = rf.peers[server].Call("Raft.InstallSnapshot", args, reply); ok {
@@ -725,10 +726,10 @@ func (rf *Raft) Size() int {
 // have more recent info since it communicate the snapshot on applyCh.
 //
 func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
-	DPrintf("[Raft %v][CondInstallSnapshot][waiting] lastIncludedTerm :%v, lastIncludedIndex: %v, rf.lastIncludedIndex: %v, len(rf.log): %v\n", rf.Me, lastIncludedTerm, lastIncludedIndex, rf.lastIncludedIndex, len(rf.log))
 	rf.mu.Lock()
 	// DPrintf("[Raft %v][Lock][CondInstallSnapshot]", rf.Me)
 	defer rf.mu.Unlock()
+	DPrintf("[Raft %v][CondInstallSnapshot][waiting] lastIncludedTerm :%v, lastIncludedIndex: %v, rf.lastIncludedIndex: %v, len(rf.log): %v\n", rf.Me, lastIncludedTerm, lastIncludedIndex, rf.lastIncludedIndex, len(rf.log))
 
 	if lastIncludedTerm < rf.logTerm {
 		return false
@@ -765,9 +766,9 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 				rf.nextIndex[i] = index + 1
 			}
 		}
+		DPrintf("[Raft %v][Snapshot][Post-truncation] index: %v, rf.lastIncludedIndex: %v, len(rf.log): %v, snapshot: %v", rf.Me, index, rf.lastIncludedIndex, len(rf.log), snapshot)
+		rf.persister.SaveStateAndSnapshot(rf.encodeState(), snapshot)
 	}
-	DPrintf("[Raft %v][Snapshot][Post-truncation] index: %v, rf.lastIncludedIndex: %v, len(rf.log): %v, snapshot: %v", rf.Me, index, rf.lastIncludedIndex, len(rf.log), snapshot)
-	rf.persister.SaveStateAndSnapshot(rf.encodeState(), snapshot)
 }
 
 func (rf *Raft) killed() bool {
